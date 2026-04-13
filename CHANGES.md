@@ -8,6 +8,7 @@
 
 - Fix component "broken" after switch variant [Taiga #12984](https://tree.taiga.io/project/penpot/issue/12984)
 - Fix dashboard navigation tabs overlap with projects content when scrolling [Taiga #13962](https://tree.taiga.io/project/penpot/issue/13962)
+- Fix text editor v1 focus [Taiga #13961](https://tree.taiga.io/project/penpot/issue/13961)
 
 
 ## 2.14.2
