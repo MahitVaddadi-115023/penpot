@@ -573,10 +573,10 @@
         file-id
         (get state ::current-file-id)
 
-         {:keys [id width height name]}
-         (-> params
-             (update :id default-uuid)
-             (check-add-file-media))]
+        {:keys [id width height name]}
+        (-> params
+            (update :id default-uuid)
+            (check-add-file-media))]
 
     (-> state
         (update ::blobs assoc media-id blob)
