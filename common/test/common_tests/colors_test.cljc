@@ -387,44 +387,41 @@
   (t/is (= 0.25 (c/reduce-range 0.3 4)))
   (t/is (= 0.0  (c/reduce-range 0.0 10))))
 
-;; --- Gradient helpers
+;; --- Gradient helpers (app.common.types.color)
 
-(t/deftest ac-interpolate-color
-  (let [c1 {:color "#000000" :opacity 0.0 :offset 0.0}
-        c2 {:color "#ffffff" :opacity 1.0 :offset 1.0}]
-    ;; At c1's offset → c1 with updated offset
-    (let [result (c/interpolate-color c1 c2 0.0)]
+(t/deftest types-interpolate-color
+  (t/testing "at c1 offset returns c1 color"
+    (let [c1     {:color "#000000" :opacity 0.0 :offset 0.0}
+          c2     {:color "#ffffff" :opacity 1.0 :offset 1.0}
+          result (colors/interpolate-color c1 c2 0.0)]
       (t/is (= "#000000" (:color result)))
-      (t/is (= 0.0 (:opacity result))))
-    ;; At c2's offset → c2 with updated offset
-    (let [result (c/interpolate-color c1 c2 1.0)]
+      (t/is (= 0.0 (:opacity result)))))
+  (t/testing "at c2 offset returns c2 color"
+    (let [c1     {:color "#000000" :opacity 0.0 :offset 0.0}
+          c2     {:color "#ffffff" :opacity 1.0 :offset 1.0}
+          result (colors/interpolate-color c1 c2 1.0)]
       (t/is (= "#ffffff" (:color result)))
-      (t/is (= 1.0 (:opacity result))))
-    ;; At midpoint → gray
-    (let [result (c/interpolate-color c1 c2 0.5)]
+      (t/is (= 1.0 (:opacity result)))))
+  (t/testing "at midpoint returns interpolated gray"
+    (let [c1     {:color "#000000" :opacity 0.0 :offset 0.0}
+          c2     {:color "#ffffff" :opacity 1.0 :offset 1.0}
+          result (colors/interpolate-color c1 c2 0.5)]
       (t/is (= "#7f7f7f" (:color result)))
       (t/is (mth/close? (:opacity result) 0.5)))))
 
-(t/deftest ac-uniform-spread
-  (let [c1 {:color "#000000" :opacity 0.0 :offset 0.0}
-        c2 {:color "#ffffff" :opacity 1.0 :offset 1.0}
-        stops (c/uniform-spread c1 c2 3)]
-    (t/is (= 3 (count stops)))
-    (t/is (= 0.0 (:offset (first stops))))
-    (t/is (mth/close? 0.5 (:offset (second stops))))
-    (t/is (= 1.0 (:offset (last stops))))))
-
-(t/deftest ac-uniform-spread?
-  (let [c1 {:color "#000000" :opacity 0.0 :offset 0.0}
-        c2 {:color "#ffffff" :opacity 1.0 :offset 1.0}
-        stops (c/uniform-spread c1 c2 3)]
-    ;; A uniformly spread result should pass the predicate
-    (t/is (true? (c/uniform-spread? stops))))
-  ;; Manual non-uniform stops should not pass
-  (let [stops [{:color "#000000" :opacity 0.0 :offset 0.0}
-               {:color "#888888" :opacity 0.5 :offset 0.3}
-               {:color "#ffffff" :opacity 1.0 :offset 1.0}]]
-    (t/is (false? (c/uniform-spread? stops)))))
+(t/deftest types-uniform-spread
+  (t/testing "produces correct count and offsets"
+    (let [c1    {:color "#000000" :opacity 0.0 :offset 0.0}
+          c2    {:color "#ffffff" :opacity 1.0 :offset 1.0}
+          stops (colors/uniform-spread c1 c2 3)]
+      (t/is (= 3 (count stops)))
+      (t/is (= 0.0 (:offset (first stops))))
+      (t/is (mth/close? 0.5 (:offset (second stops))))
+      (t/is (= 1.0 (:offset (last stops))))))
+  (t/testing "single stop returns a vector of one element (no division by zero)"
+    (let [c1    {:color "#ff0000" :opacity 1.0 :offset 0.0}
+          stops (colors/uniform-spread c1 c1 1)]
+      (t/is (= 1 (count stops))))))
 
 (t/deftest types-uniform-spread?
   (t/testing "uniformly spread stops are detected as uniform"
@@ -447,16 +444,25 @@
                  {:color "#ffffff" :opacity 1.0 :offset 1.0}]]
       (t/is (false? (colors/uniform-spread? stops))))))
 
-(t/deftest ac-interpolate-gradient
-  (let [stops [{:color "#000000" :opacity 0.0 :offset 0.0}
-               {:color "#ffffff" :opacity 1.0 :offset 1.0}]]
-    ;; At start
-    (let [result (c/interpolate-gradient stops 0.0)]
-      (t/is (= "#000000" (:color result))))
-    ;; At end
-    (let [result (c/interpolate-gradient stops 1.0)]
-      (t/is (= "#ffffff" (:color result))))
-    ;; In the middle
-    (let [result (c/interpolate-gradient stops 0.5)]
-      (t/is (= "#7f7f7f" (:color result))))))
+(t/deftest types-interpolate-gradient
+  (t/testing "at start offset returns first stop color"
+    (let [stops  [{:color "#000000" :opacity 0.0 :offset 0.0}
+                  {:color "#ffffff" :opacity 1.0 :offset 1.0}]
+          result (colors/interpolate-gradient stops 0.0)]
+      (t/is (= "#000000" (:color result)))))
+  (t/testing "at end offset returns last stop color"
+    (let [stops  [{:color "#000000" :opacity 0.0 :offset 0.0}
+                  {:color "#ffffff" :opacity 1.0 :offset 1.0}]
+          result (colors/interpolate-gradient stops 1.0)]
+      (t/is (= "#ffffff" (:color result)))))
+  (t/testing "at midpoint returns interpolated gray"
+    (let [stops  [{:color "#000000" :opacity 0.0 :offset 0.0}
+                  {:color "#ffffff" :opacity 1.0 :offset 1.0}]
+          result (colors/interpolate-gradient stops 0.5)]
+      (t/is (= "#7f7f7f" (:color result)))))
+  (t/testing "offset beyond last stop returns last stop color (nil idx guard)"
+    (let [stops  [{:color "#000000" :opacity 0.0 :offset 0.0}
+                  {:color "#ffffff" :opacity 1.0 :offset 0.5}]
+          result (colors/interpolate-gradient stops 1.0)]
+      (t/is (= "#ffffff" (:color result))))))
 
