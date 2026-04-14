@@ -1439,7 +1439,7 @@
         (update-in [:layout-grid-cells id-from]
                    assoc
                    :shapes (:shapes cell-to)
-                   :podition (:position cell-to))
+                   :position (:position cell-to))
         (update-in [:layout-grid-cells id-to]
                    assoc
                    :shapes (:shapes cell-from)
