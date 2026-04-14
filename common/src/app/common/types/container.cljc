@@ -441,7 +441,7 @@
   (if (ctk/main-instance? shape)
     [shape]
     (if-let [children (cfh/get-children objects (:id shape))]
-      (mapcat collect-main-shapes children objects)
+      (mapcat #(collect-main-shapes % objects) children)
       [])))
 
 (defn get-component-from-shape
