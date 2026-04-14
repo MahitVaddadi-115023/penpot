@@ -426,6 +426,27 @@
                {:color "#ffffff" :opacity 1.0 :offset 1.0}]]
     (t/is (false? (c/uniform-spread? stops)))))
 
+(t/deftest types-uniform-spread?
+  (t/testing "uniformly spread stops are detected as uniform"
+    (let [c1    {:color "#000000" :opacity 0.0 :offset 0.0}
+          c2    {:color "#ffffff" :opacity 1.0 :offset 1.0}
+          stops (colors/uniform-spread c1 c2 3)]
+      (t/is (true? (colors/uniform-spread? stops)))))
+  (t/testing "two-stop gradient is uniform by definition"
+    (let [stops [{:color "#ff0000" :opacity 1.0 :offset 0.0}
+                 {:color "#0000ff" :opacity 1.0 :offset 1.0}]]
+      (t/is (true? (colors/uniform-spread? stops)))))
+  (t/testing "stops with wrong offset are not uniform"
+    (let [stops [{:color "#000000" :opacity 0.0 :offset 0.0}
+                 {:color "#888888" :opacity 0.5 :offset 0.3}
+                 {:color "#ffffff" :opacity 1.0 :offset 1.0}]]
+      (t/is (false? (colors/uniform-spread? stops)))))
+  (t/testing "stops with correct offset but wrong color are not uniform"
+    (let [stops [{:color "#000000" :opacity 0.0 :offset 0.0}
+                 {:color "#aaaaaa" :opacity 0.5 :offset 0.5}
+                 {:color "#ffffff" :opacity 1.0 :offset 1.0}]]
+      (t/is (false? (colors/uniform-spread? stops))))))
+
 (t/deftest ac-interpolate-gradient
   (let [stops [{:color "#000000" :opacity 0.0 :offset 0.0}
                {:color "#ffffff" :opacity 1.0 :offset 1.0}]]
