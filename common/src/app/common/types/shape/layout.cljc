@@ -262,7 +262,7 @@
         (or (nil? current) (= current-id parent-id))
         false
 
-        (cfh/frame-shape? current-id)
+        (cfh/frame-shape? current)
         (:layout current)
 
         :else
