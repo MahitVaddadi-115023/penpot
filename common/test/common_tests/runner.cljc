@@ -54,6 +54,7 @@
    [common-tests.text-test]
    [common-tests.time-test]
    [common-tests.types.absorb-assets-test]
+   [common-tests.types.color-test]
    [common-tests.types.components-test]
    [common-tests.types.container-test]
    [common-tests.types.fill-test]
@@ -126,6 +127,7 @@
    'common-tests.text-test
    'common-tests.time-test
    'common-tests.types.absorb-assets-test
+   'common-tests.types.color-test
    'common-tests.types.components-test
    'common-tests.types.container-test
    'common-tests.types.fill-test
