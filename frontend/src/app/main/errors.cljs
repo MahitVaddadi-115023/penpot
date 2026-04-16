@@ -33,6 +33,16 @@
 ;; Will contain last uncaught exception
 (def last-exception nil)
 
+(defn is-plugin-error?
+  "This is a placeholder that always return false. It will be
+  overwritten when plugin system is initialized. This works this way
+  because we can't import plugins here because plugins requries full
+  DOM.
+
+  This placeholder is set on app.plugins/initialize event"
+  [_]
+  false)
+
 ;; Re-entrancy guard: prevents on-error from calling itself recursively.
 ;; If an error occurs while we are already handling an error (e.g. the
 ;; notification emit itself throws), we log it and bail out immediately
@@ -205,6 +215,16 @@
     (when-let [cause (::instance error)]
       (ex/print-throwable cause :prefix "Unexpected Error")
       (flash :cause cause :type :unhandled))))
+
+(defmethod ptk/handle-error :wasm-error
+  [error]
+  (when-let [cause (::instance error)]
+    (ex/print-throwable cause)
+    (let [code (get error :code)]
+      (if (or (= code :panic)
+              (= code :webgl-context-lost))
+        (st/emit! (rt/assign-exception error))
+        (flash :type :handled :cause cause)))))
 
 ;; We receive a explicit authentication error; If the uri is for
 ;; workspace, dashboard, viewer or settings, then assign the exception
@@ -420,6 +440,15 @@
               (and (string? stack)
                    (str/includes? stack "posthog"))))
 
+          ;; Check if the error is marked as originating from plugin code.
+          ;; The plugin runtime tracks plugin errors in a WeakMap, which works
+          ;; even in SES hardened environments where error objects may be frozen.
+          (from-plugin? [cause]
+            (try
+              (is-plugin-error? cause)
+              (catch :default _
+                false)))
+
           (is-ignorable-exception? [cause]
             (let [message (ex-message cause)]
               (or (from-extension? cause)
@@ -447,32 +476,55 @@
           (on-unhandled-error [event]
             (.preventDefault ^js event)
             (when-let [cause (unchecked-get event "error")]
-              (when-not (is-ignorable-exception? cause)
-                (if (stale-asset-error? cause)
-                  (cf/throttled-reload :reason (ex-message cause))
-                  (let [data (ex-data cause)
-                        type (get data :type)]
-                    (set! last-exception cause)
-                    (if (= :wasm-error type)
-                      (on-error cause)
-                      (do
-                        (ex/print-throwable cause :prefix "Uncaught Exception")
-                        (ts/asap #(flash :cause cause :type :unhandled)))))))))
+              (cond
+                (stale-asset-error? cause)
+                (cf/throttled-reload :reason (ex-message cause))
+
+                ;; Plugin errors: log to console and ignore
+                (from-plugin? cause)
+                (ex/print-throwable cause :prefix "Plugin Error")
+
+                ;; Other ignorable exceptions: ignore silently
+                (is-ignorable-exception? cause)
+                nil
+
+                ;; All other errors: show exception page
+                :else
+
+                (let [data (ex-data cause)
+                      type (get data :type)]
+                  (set! last-exception cause)
+                  (if (= :wasm-error type)
+                    (on-error cause)
+                    (do
+                      (ex/print-throwable cause :prefix "Uncaught Exception")
+                      (ts/asap #(flash :cause cause :type :unhandled))))))))
 
           (on-unhandled-rejection [event]
             (.preventDefault ^js event)
             (when-let [cause (unchecked-get event "reason")]
-              (when-not (is-ignorable-exception? cause)
-                (if (stale-asset-error? cause)
-                  (cf/throttled-reload :reason (ex-message cause))
-                  (let [data (ex-data cause)
-                        type (get data :type)]
-                    (set! last-exception cause)
-                    (if (= :wasm-error type)
-                      (on-error cause)
-                      (do
-                        (ex/print-throwable cause :prefix "Uncaught Rejection")
-                        (ts/asap #(flash :cause cause :type :unhandled)))))))))]
+              (cond
+                (stale-asset-error? cause)
+                (cf/throttled-reload :reason (ex-message cause))
+
+                ;; Plugin errors: log to console and ignore
+                (from-plugin? cause)
+                (ex/print-throwable cause :prefix "Plugin Error")
+
+                ;; Other ignorable exceptions: ignore silently
+                (is-ignorable-exception? cause)
+                nil
+
+                ;; All other errors: show exception page
+                :else
+                (let [data (ex-data cause)
+                      type (get data :type)]
+                  (set! last-exception cause)
+                  (if (= :wasm-error type)
+                    (on-error cause)
+                    (do
+                      (ex/print-throwable cause :prefix "Uncaught Rejection")
+                      (ts/asap #(flash :cause cause :type :unhandled))))))))]
 
     (.addEventListener g/window "error" on-unhandled-error)
     (.addEventListener g/window "unhandledrejection" on-unhandled-rejection)

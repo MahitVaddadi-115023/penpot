@@ -190,7 +190,7 @@
         :settings-options
         :settings-feedback
         :settings-subscription
-        :settings-access-tokens
+        :settings-integrations
         :settings-notifications)
        (let [params (get params :query)
              error-report-id (some-> params :error-report-id uuid/parse*)]

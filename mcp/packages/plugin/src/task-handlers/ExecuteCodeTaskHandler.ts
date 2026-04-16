@@ -195,10 +195,44 @@ export class ExecuteCodeTaskHandler extends TaskHandler<ExecuteCodeTaskParams> {
         const context = this.context;
         const code = task.params.code;
 
-        let result: any = await (async (ctx) => {
-            const fn = new Function(...Object.keys(ctx), `return (async () => { ${code} })();`);
-            return fn(...Object.values(ctx));
-        })(context);
+        // set the flags naturalChildOrdering and throwValidationErrors to true during code execution.
+        // TODO: Remove all ts-ignore once Penpot types have been updated
+        let originalNaturalChildOrdering: any, originalThrowValidationErrors: any;
+        // @ts-ignore
+        if (penpot.flags) {
+            // @ts-ignore
+            originalNaturalChildOrdering = penpot.flags.naturalChildOrdering;
+            // @ts-ignore
+            penpot.flags.naturalChildOrdering = true;
+            // @ts-ignore
+            originalThrowValidationErrors = penpot.flags.throwValidationErrors;
+            // @ts-ignore
+            penpot.flags.throwValidationErrors = true;
+        } else {
+            // TODO: This can be removed once `flags` has been merged to PROD
+            throw new Error(
+                "You are using a version of the Penpot MCP server which is incompatible " +
+                    "with the connected Penpot version. " +
+                    "Read the documentation for instructions on which version to use: " +
+                    "https://github.com/penpot/penpot/tree/develop/mcp\n" +
+                    "If you are an LLM, tell the user about this!"
+            );
+        }
+
+        let result: any;
+        try {
+            // execute the code in an async function with the context variables as parameters
+            result = await (async (ctx) => {
+                const fn = new Function(...Object.keys(ctx), `return (async () => { ${code} })();`);
+                return fn(...Object.values(ctx));
+            })(context);
+        } finally {
+            // restore the original value of the flags
+            // @ts-ignore
+            penpot.flags.naturalChildOrdering = originalNaturalChildOrdering;
+            // @ts-ignore
+            penpot.flags.throwValidationErrors = originalThrowValidationErrors;
+        }
 
         console.log("Code execution result:", result);
 
