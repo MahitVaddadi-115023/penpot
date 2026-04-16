@@ -5,7 +5,6 @@
 ### :sparkles: New features & Enhancements
 
 - Add webp export format to plugin types [Github #8870](https://github.com/penpot/penpot/pull/8870)
-- Add minor adjustments to the auth events [Github #9027](https://github.com/penpot/penpot/pull/9027)
 - Use shared singleton containers for React portals to reduce DOM growth [Github #8957](https://github.com/penpot/penpot/pull/8957)
 
 ### :bug: Bugs fixed
