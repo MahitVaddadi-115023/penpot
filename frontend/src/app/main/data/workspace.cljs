@@ -224,6 +224,7 @@
     IDeref
     (-deref [_] bundle)
 
+
     ptk/UpdateEvent
     (update [_ state]
       (-> state
@@ -246,6 +247,7 @@
         (rx/of (dws/select-shapes frames-id)
                dwz/zoom-to-selected-shape)))))
 
+;; FIXME: rename to `fetch-file`
 (defn- fetch-bundle
   "Multi-stage file bundle fetch coordinator"
   [file-id features]
@@ -283,6 +285,20 @@
         (when shape
           (wasm.api/process-object shape))))))
 
+
+(defn initialize-file
+  [team-id file-id]
+  (assert (uuid? team-id) "expected valud uuid for `team-id`")
+  (assert (uuid? file-id) "expected valud uuid for `file-id`")
+
+  (ptk/reify ::initialize-file
+    ptk/WatchEvent
+    (watch [_ state _]
+      (let [features (features/get-enabled-features state team-id)]
+        (log/dbg :hint "initialize-file"
+                 :team-id (dm/str team-id)
+                 :file-id (dm/str file-id))
+        (rx/of (fetch-bundle file-id features))))))
 (defn initialize-workspace
   [team-id file-id]
   (assert (uuid? team-id) "expected valud uuid for `team-id`")
@@ -337,7 +353,7 @@
 
                 ;; Once the essential data is fetched, lets proceed to
                 ;; fetch teh file bunldle
-                (rx/of (fetch-bundle file-id features)))
+                (rx/of (initialize-file team-id file-id)))
 
                (->> stream
                     (rx/filter (ptk/type? ::bundle-fetched))
@@ -471,7 +487,6 @@
               (rx/take-until stoper-s))
 
          (rx/of (mcp/notify-other-tabs-disconnect)))))
-
     ptk/EffectEvent
     (effect [_ _ _]
       (let [name (dm/str "workspace-" file-id)]
