@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2.15.0 (Unreleased)
+
+### :sparkles: New features & Enhancements
+
+- Add MCP server integration [Taiga #13112](https://tree.taiga.io/project/penpot/us/13112)
+- Add chunked upload API for large media and binary files (removes previous upload size limits) [Github #8909](https://github.com/penpot/penpot/pull/8909)
+
+### :bug: Bugs fixed
+
+- Fix incorrect handling of version restore operation [Github #9041](https://github.com/penpot/penpot/pull/9041)
+- Fix removeChild errors from unmount race conditions [Github #8927](https://github.com/penpot/penpot/pull/8927)
+
+
 ## 2.14.3
 
 ### :sparkles: New features & Enhancements
