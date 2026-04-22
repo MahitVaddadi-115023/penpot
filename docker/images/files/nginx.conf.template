@@ -138,17 +138,17 @@ http {
         location /mcp/ws {
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection 'upgrade';
-            proxy_pass http://$PENPOT_MCP_URI:4402;
+            proxy_pass $PENPOT_MCP_URI:4402;
             proxy_http_version 1.1;
         }
 
         location /mcp/stream {
-            proxy_pass http://$PENPOT_MCP_URI:4401/mcp;
+            proxy_pass $PENPOT_MCP_URI:4401/mcp;
             proxy_http_version 1.1;
         }
 
         location /mcp/sse {
-            proxy_pass http://$PENPOT_MCP_URI:4401/sse;
+            proxy_pass $PENPOT_MCP_URI:4401/sse;
             proxy_http_version 1.1;
         }
 
