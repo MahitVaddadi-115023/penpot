@@ -12,6 +12,7 @@
    [app.common.logging :as log]
    [app.common.time :as ct]
    [app.common.uri :as u]
+   [app.common.uuid :as uuid]
    [app.common.version :as v]
    [app.util.avatars :as avatars]
    [app.util.extends]
@@ -108,9 +109,11 @@
 (def target               (parse-target global))
 (def browser              (parse-browser))
 (def platform             (parse-platform))
+(def session-id           (uuid/next))
 
 (def version              (parse-version global))
 (def version-tag          (obj/get global "penpotVersionTag"))
+
 
 (defn stale-build?
   "Returns true when the compiled JS was built with a different version
@@ -156,6 +159,7 @@
 (def plugins-list-uri     (obj/get global "penpotPluginsListURI" "https://penpot.app/penpothub/plugins"))
 (def plugins-whitelist    (into #{} (obj/get global "penpotPluginsWhitelist" [])))
 (def templates-uri        (obj/get global "penpotTemplatesURI" "https://penpot.github.io/penpot-files/"))
+(def upload-chunk-size    (obj/get global "penpotUploadChunkSize" (* 1024 1024 25))) ;; 25 MiB
 
 ;; We set the current parsed flags under common for make
 ;; it available for common code without the need to pass
@@ -171,6 +175,10 @@
 (def public-uri
   (normalize-uri (or (obj/get global "penpotPublicURI")
                      (obj/get location "origin"))))
+
+(def mcp-ws-uri
+  (or (some-> (obj/get global "penpotMcpServerURI") u/uri)
+      (u/join public-uri "mcp/ws")))
 
 (def rasterizer-uri
   (or (some-> (obj/get global "penpotRasterizerURI") normalize-uri)
@@ -207,6 +215,9 @@
   []
   (let [f (obj/get global "initializeExternalConfigInfo")]
     (when (fn? f) (f))))
+
+(def mcp-server-url (-> public-uri u/ensure-path-slash (u/join "mcp/stream") str))
+(def mcp-help-center-uri "https://help.penpot.app/mcp/")
 
 ;; --- Helper Functions
 

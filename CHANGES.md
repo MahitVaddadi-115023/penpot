@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2.15.0 (Unreleased)
+
+### :sparkles: New features & Enhancements
+
+- Access Tokens look & feel refinement [Taiga #13114](https://tree.taiga.io/project/penpot/us/13114)
+- Add MCP server integration [Taiga #13112](https://tree.taiga.io/project/penpot/us/13112)
+- Add chunked upload API for large media and binary files (removes previous upload size limits) [Github #8909](https://github.com/penpot/penpot/pull/8909)
+
+### :bug: Bugs fixed
+
+- Fix incorrect handling of version restore operation [Github #9041](https://github.com/penpot/penpot/pull/9041)
+
+
 ## 2.14.4
 
 ### :bug: Bugs fixed
@@ -100,6 +113,8 @@
 - Optimize sidebar performance for deeply nested shapes [Taiga #13017](https://tree.taiga.io/project/penpot/task/13017)
 - Remove tokens path node and bulk remove tokens [Taiga #13007](https://tree.taiga.io/project/penpot/us/13007)
 - Replace themes management modal radio buttons for switches [Taiga #9215](https://tree.taiga.io/project/penpot/us/9215)
+- [MCP server] Integrations section [Taiga #13112](https://tree.taiga.io/project/penpot/us/13112)
+- [Access Tokens] Look & feel refinement [Taiga #13114](https://tree.taiga.io/project/penpot/us/13114)
 
 ### :bug: Bugs fixed
 
