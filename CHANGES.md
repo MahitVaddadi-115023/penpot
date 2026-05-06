@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2.14.5
+
+### :bug: Bugs fixed
+
+- Fix incorrect invitation token handling on register process [Github #9380](https://github.com/penpot/penpot/pull/9380)
+
+
 ## 2.14.4
 
 ### :bug: Bugs fixed
