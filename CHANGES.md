@@ -11,11 +11,14 @@
 
 ### :bug: Bugs fixed
 
+- Fix keep-alive interval leak in PluginBridge (by @opcode81) [Github #9435](https://github.com/penpot/penpot/pull/9435)
+- Fix MCP "active in another tab" notification not clearing (by @Dexterity104) [Github #9321](https://github.com/penpot/penpot/pull/9321)
+- Fix swapped analytics event names on MCP tab-switch dialog (by @Dexterity104) [Github #9322](https://github.com/penpot/penpot/pull/9322)
 - Fix MCP ReplServer binding to all interfaces (0.0.0.0) instead of localhost, allowing unauthenticated RCE
 - Fix incorrect invitation token handling on register process [Github #9380](https://github.com/penpot/penpot/pull/9380)
 - Fix incorrect handling of version restore operation [Github #9041](https://github.com/penpot/penpot/pull/9041)
 - Fix false “text editing” warning when applying tokens [Github #6346](https://github.com/penpot/penpot/issues/9346)
-
+- Use base64 envelope for Uint8Array task results to avoid JSON expansion (by @opcode81) [Github #9431](https://github.com/penpot/penpot/pull/9431)
 
 ## 2.14.5
 
