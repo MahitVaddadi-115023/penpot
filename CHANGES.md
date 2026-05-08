@@ -5,10 +5,8 @@
 
 ### :sparkles: New features & Enhancements
 
-- Access Tokens look & feel refinement [Taiga #13114](https://tree.taiga.io/project/penpot/us/13114)
-- Add MCP server integration [Taiga #13112](https://tree.taiga.io/project/penpot/us/13112)
+- Add MCP server integration [Github #9174](https://github.com/penpot/penpot/issues/9174) 
 - Add chunked upload API for large media and binary files (removes previous upload size limits) [Github #8909](https://github.com/penpot/penpot/pull/8909)
-- Add minor compatibility adjustments for audit archive task [Github #8491](https://github.com/penpot/penpot/pull/8491)
 - Improve team name validation [Github #9176](https://github.com/penpot/penpot/pull/9176)
 
 ### :bug: Bugs fixed
@@ -16,10 +14,10 @@
 - Fix keep-alive interval leak in PluginBridge (by @opcode81) [Github #9435](https://github.com/penpot/penpot/pull/9435)
 - Fix MCP "active in another tab" notification not clearing (by @Dexterity104) [Github #9321](https://github.com/penpot/penpot/pull/9321)
 - Fix swapped analytics event names on MCP tab-switch dialog (by @Dexterity104) [Github #9322](https://github.com/penpot/penpot/pull/9322)
-- Fix MCP ReplServer binding to all interfaces (0.0.0.0) instead of localhost, allowing unauthenticated RCE
+- Fix MCP ReplServer binding to all interfaces (0.0.0.0) instead of localhost, allowing unauthenticated RCE [Github #9400] (https://github.com/penpot/penpot/pull/9400)
 - Fix incorrect handling of version restore operation [Github #9041](https://github.com/penpot/penpot/pull/9041)
 - Fix SSRF in media URL import and restrict unauthenticated asset access to public buckets only [Github #9390](https://github.com/penpot/penpot/pull/9390)
-- Fix false “text editing” warning when applying tokens [Github #9355](https://github.com/penpot/penpot/pull/9355)
+- Fix text edition mode not exited when changing selection, blocking token application [Github #9346](https://github.com/penpot/penpot/issues/9346)
 - Use base64 envelope for Uint8Array task results to avoid JSON expansion (by @opcode81) [Github #9431](https://github.com/penpot/penpot/pull/9431)
 - Fix empty warning on login [Github #9056](https://github.com/penpot/penpot/pull/9056)
 - Fix layer hierarchy to match old and new SCSS [Github #9126](https://github.com/penpot/penpot/pull/9126)
