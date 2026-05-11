@@ -66,7 +66,7 @@
         ;; Force persist before creating snapshot, otherwise we could loss changes
         (rx/concat
          (rx/of ::dwp/force-persist
-                (ptk/event ::ev/event {::ev/name "create-version"}))
+                (ev/event {::ev/name "create-version"}))
 
          (->> (rx/from-atom refs/persistence-state {:emit-current-value? true})
               (rx/filter #(or (nil? %) (= :saved %)))
@@ -88,8 +88,8 @@
       (let [file-id (:current-file-id state)]
         (rx/merge
          (rx/of (update-versions-state {:editing nil})
-                (ptk/event ::ev/event {::ev/name "rename-version"
-                                       :file-id file-id}))
+                (ev/event {::ev/name "rename-version"
+                           :file-id file-id}))
          (->> (rp/cmd! :update-file-snapshot {:id id :label label})
               (rx/map fetch-versions)))))))
 
@@ -173,7 +173,7 @@
                (rx/mapcat (fn [_]
                             (rx/of (update-versions-state {:editing id})
                                    (fetch-versions)
-                                   (ptk/event ::ev/event {::ev/name "pin-version"}))))))))))
+                                   (ev/event {::ev/name "pin-version"}))))))))))
 
 (defn lock-version
   [id]
@@ -215,9 +215,6 @@
       (let [current-file-id (:current-file-id state)]
         ;; Force persist before creating snapshot, otherwise we could loss changes
         (->> (rx/concat
-              (rx/of (ptk/event ::ev/event {::ev/origin "plugins"
-                                            ::ev/name "create-version"}))
-
               (when (= file-id current-file-id)
                 (rx/of ::dwp/force-persist))
 
@@ -246,20 +243,15 @@
 
   (ptk/reify ::restore-version-from-plugins
     ptk/WatchEvent
-    (watch [_ state _]
-      (let [team-id (:current-team-id state)]
-        (rx/concat
-         (rx/of (ev/event {::ev/name "restore-version-plugin"
-                           :file-id file-id
-                           :team-id team-id})
-                ::dwp/force-persist)
+    (watch [_ _ _]
+      (rx/concat
+       (rx/of ::dwp/force-persist)
+       (->> (wait-for-persistence file-id id)
+            (rx/map #(initialize-version)))
 
-         (->> (wait-for-persistence file-id id)
-              (rx/map #(initialize-version)))
-
-         (->> (rx/of 1)
-              (rx/tap resolve)
-              (rx/ignore)))))))
+       (->> (rx/of 1)
+            (rx/tap resolve)
+            (rx/ignore))))))
 
 
 
