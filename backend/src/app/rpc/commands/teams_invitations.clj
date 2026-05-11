@@ -156,9 +156,9 @@
                          "update-team-invitation"
                          "create-team-invitation")
                 event (-> (audit/event-from-rpc-params params)
-                          (assoc ::audit/name evname)
-                          (assoc ::audit/props props))]
-            (audit/submit! cfg event))
+                          (assoc :name evname)
+                          (assoc :props props))]
+            (audit/submit cfg event))
 
           (when (allow-invitation-emails? member)
             (eml/send! {::eml/conn conn
@@ -410,9 +410,9 @@
 
     (let [props {:name name :features features}
           event (-> (audit/event-from-rpc-params params)
-                    (assoc ::audit/name "create-team")
-                    (assoc ::audit/props props))]
-      (audit/submit! cfg event))
+                    (assoc :name "create-team")
+                    (assoc :props props))]
+      (audit/submit cfg event))
 
     ;; Create invitations for all provided emails.
     (let [profile     (db/get-by-id conn :profile profile-id)
