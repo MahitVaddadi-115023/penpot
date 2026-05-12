@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2.15.2
+
+### :bug: Bugs fixed
+
+- Fix mcp related internal config for docker images [Github #9565](https://github.com/penpot/penpot/pull/9565)
+
+
 ## 2.15.1
 
 ### :sparkles: New features & Enhancements
