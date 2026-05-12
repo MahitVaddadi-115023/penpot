@@ -1,32 +1,33 @@
 # CHANGELOG
 
-## 2.15.0 (Unreleased)
+## 2.15.0
 
 ### :sparkles: New features & Enhancements
 
-- Add MCP server integration [Github #9174](https://github.com/penpot/penpot/issues/9174) 
-- Add chunked upload API for large media and binary files (removes previous upload size limits) [Github #8909](https://github.com/penpot/penpot/pull/8909)
-- Improve team name validation [Github #9176](https://github.com/penpot/penpot/pull/9176)
+- Add MCP server integration [Github #9174](https://github.com/penpot/penpot/issues/9174)
+- Add chunked upload API for large media and binary files (removes previous upload size limits) [Github #9516](https://github.com/penpot/penpot/issues/9516)
+- Add anonymous telemetry event collection [Github #9467](https://github.com/penpot/penpot/issues/9467)
+- Improve team name validation [Github #9517](https://github.com/penpot/penpot/issues/9517)
+- Enhance readability of applied tokens in plugins API [Github #9175](https://github.com/penpot/penpot/issues/9175)
+- Encourage use of flex/grid layouts in designs generated via MCP [Github #9081](https://github.com/penpot/penpot/issues/9081)
+- Improve MCP server logging, adding Loki support [Github #9415](https://github.com/penpot/penpot/issues/9415)
+- Add security headers to Nginx on Docker images [Github #9519](https://github.com/penpot/penpot/issues/9519)
 
 ### :bug: Bugs fixed
 
-- Fix MCP integrations URL copy action to match the URL displayed in settings [Github #9238](https://github.com/penpot/penpot/issues/9238)
-- Fix Plugin API token methods rejecting JS array of strings [Github #9162](https://github.com/penpot/penpot/issues/9162)
-- Harden Nginx responses with standard security headers and hide upstream `X-Powered-By` headers
-- Fix keep-alive interval leak in PluginBridge (by @opcode81) [Github #9435](https://github.com/penpot/penpot/pull/9435)
-- Fix MCP "active in another tab" notification not clearing (by @Dexterity104) [Github #9321](https://github.com/penpot/penpot/pull/9321)
-- Fix swapped analytics event names on MCP tab-switch dialog (by @Dexterity104) [Github #9322](https://github.com/penpot/penpot/pull/9322)
-- Fix MCP ReplServer binding to all interfaces (0.0.0.0) instead of localhost, allowing unauthenticated RCE [Github #9400] (https://github.com/penpot/penpot/pull/9400)
-- Fix incorrect handling of version restore operation [Github #9041](https://github.com/penpot/penpot/pull/9041)
-- Fix SSRF in media URL import and restrict unauthenticated asset access to public buckets only [Github #9390](https://github.com/penpot/penpot/pull/9390)
 - Fix text edition mode not exited when changing selection, blocking token application [Github #9346](https://github.com/penpot/penpot/issues/9346)
-- Use base64 envelope for Uint8Array task results to avoid JSON expansion (by @opcode81) [Github #9431](https://github.com/penpot/penpot/pull/9431)
-- Fix empty warning on login [Github #9056](https://github.com/penpot/penpot/pull/9056)
-- Fix layer hierarchy to match old and new SCSS [Github #9126](https://github.com/penpot/penpot/pull/9126)
-- Fix multiple selection on shapes with token applied to stroke color [Github #9110](https://github.com/penpot/penpot/pull/9110)
-- Fix onboarding modals appearing behind libraries and templates panel [Github #9178](https://github.com/penpot/penpot/pull/9178)
+- Reduce memory usage of MCP server when handling images (by @opcode81) [Github #9420](https://github.com/penpot/penpot/issues/9420)
+- Fix Plugin API token methods rejecting JS array of strings (by @boskodev790) [Github #9162](https://github.com/penpot/penpot/issues/9162)
 - Fix release notes modal appearing behind the dashboard sidebar (by @RenzoMXD) [Github #8296](https://github.com/penpot/penpot/issues/8296)
+- Fix empty warning on login [Github #9520](https://github.com/penpot/penpot/issues/9520)
 - Fix maximum call stack size exceeded in SSE read-stream [Github #9470](https://github.com/penpot/penpot/issues/9470)
+- Fix incorrect handling of version restore operation [Github #9515](https://github.com/penpot/penpot/issues/9515)
+- Fix MCP ReplServer binding to all interfaces (0.0.0.0) instead of localhost, allowing unauthenticated RCE [Github #9518](https://github.com/penpot/penpot/issues/9518)
+- Fix MCP integrations URL copy action to match the URL displayed in settings [Github #9238](https://github.com/penpot/penpot/issues/9238)
+- Fix swapped analytics event names on MCP tab-switch dialog (by @Dexterity104) [Github #9496](https://github.com/penpot/penpot/issues/9496)
+- Fix multiple selection on shapes with token applied to stroke color [Github #9522](https://github.com/penpot/penpot/issues/9522)
+- Fix onboarding modals appearing behind libraries and templates panel [Github #9521](https://github.com/penpot/penpot/issues/9521)
+- Fix keep-alive interval leak in PluginBridge (by @opcode81) [Github #9430](https://github.com/penpot/penpot/issues/9430)
 
 ## 2.14.5
 
