@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2.15.1
+
+### :sparkles: New features & Enhancements
+
+- Add support for chunked uploading of fonts [Github #9560](https://github.com/penpot/penpot/issues/9560)
+
+
 ## 2.15.0
 
 ### :sparkles: New features & Enhancements
