@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2.15.3
+
+### :bug: Bugs fixed
+
+- Fix Plugin API token methods failing with schema validation error on PRO [Github #9641](https://github.com/penpot/penpot/issues/9641)
+  (PR: [#9632](https://github.com/penpot/penpot/pull/9632))
+- Sanitize comment content on rendering [Github #9642](https://github.com/penpot/penpot/issues/9642)
+  (PR: [#9605](https://github.com/penpot/penpot/pull/9605))
+- Sanitize font family names on custom uploaded fonts [Github #9643](https://github.com/penpot/penpot/issues/9643)
+  (PR: [#9601](https://github.com/penpot/penpot/pull/9601))
+
+
 ## 2.15.2
 
 ### :bug: Bugs fixed
