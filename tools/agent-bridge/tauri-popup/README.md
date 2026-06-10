@@ -1,14 +1,14 @@
 # Antigravity Popup
 
-Tiny Tauri 2.x macOS app: press **Cmd+Opt+I** anywhere, type an instruction, get the result pasted back into whatever app was focused.
+Tiny Tauri 2.x macOS app: press **Cmd+Ctrl+I** anywhere, type an instruction, get the result pasted back into whatever app was focused.
 
 This is app **#1** of the 3-app sequence (popup -> plugin wrapper -> full IDE).
 
 ## What it does
 
 1. Runs in the background with a hidden window + global shortcut.
-2. On **Cmd+Opt+I**, a small frameless popup (480x240) appears, focused.
-3. On open it reads your clipboard and shows the first ~200 chars as the "draft" (so the standard workflow is: select text -> Cmd+C -> Cmd+Opt+I -> type instruction).
+2. On **Cmd+Ctrl+I**, a small frameless popup (480x240) appears, focused.
+3. On open it reads your clipboard and shows the first ~200 chars as the "draft" (so the standard workflow is: select text -> Cmd+C -> Cmd+Ctrl+I -> type instruction).
 4. You pick a model (loaded from `GET http://localhost:3777/info`), type an instruction (e.g. "make this more concise"), hit **Cmd+Enter** or click **Send**.
 5. The popup `POST`s to `http://localhost:3777/chat` with a tightly constrained system prompt that asks for ONLY the rewritten text.
 6. The result is written to the clipboard, the popup hides, and `osascript` synthesizes **Cmd+V** in the now-foreground app — pasting the rewrite where your cursor sits.
@@ -42,7 +42,7 @@ In the System Settings pane you'll see a list of apps with an on/off toggle. Fin
 - **Dev (`npm run tauri dev`)**: the permission applies to the **Terminal app** (or iTerm2 / your shell host) that's running `cargo`. macOS attributes synthesized keystrokes to the parent process, not the Tauri webview.
 - **Production (bundled `.app`)**: the permission applies to **Antigravity Popup.app** itself. Drag it into the Accessibility list (or use the `+` button) and toggle on.
 
-After granting, you don't need to restart — just reopen the popup with Cmd+Opt+I, and the banner should disappear on its own (the popup rechecks on every open).
+After granting, you don't need to restart — just reopen the popup with Cmd+Ctrl+I, and the banner should disappear on its own (the popup rechecks on every open).
 
 If auto-paste is unavailable, the popup still writes the result to your clipboard and shows:
 
@@ -67,7 +67,7 @@ npm run tauri build
 
 ## Configure the shortcut
 
-`Cmd+Opt+I` is registered in `src-tauri/src/lib.rs`:
+`Cmd+Ctrl+I` is registered in `src-tauri/src/lib.rs`:
 
 ```rust
 let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::ALT), Code::KeyI);
@@ -107,6 +107,6 @@ tauri-popup/
 
 ## Known gaps
 
-- **No OS-selection capture**: macOS doesn't expose the current text selection without Accessibility-API scraping. We use the clipboard as the "draft" instead. The intended UX is: select -> Cmd+C -> Cmd+Opt+I.
+- **No OS-selection capture**: macOS doesn't expose the current text selection without Accessibility-API scraping. We use the clipboard as the "draft" instead. The intended UX is: select -> Cmd+C -> Cmd+Ctrl+I.
 - **No tray icon yet**: the binary just runs invisibly. Add `tauri-plugin-tray` later for menu-bar controls.
 - **No streaming**: `/chat` is awaited fully then pasted in one shot. Streaming into the popup is a follow-up.

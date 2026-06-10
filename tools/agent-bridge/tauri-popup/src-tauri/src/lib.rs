@@ -270,7 +270,7 @@ pub fn run() {
         .setup(|app| {
             // Register Cmd+Opt+I (a.k.a. Super+Alt+I cross-platform).
             // Cmd+I alone collides with most editors' italic toggle.
-            let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::ALT), Code::KeyI);
+            let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::CONTROL), Code::KeyI);
             app.global_shortcut().register(shortcut)?;
 
             // Auto-hide on blur so the popup never gets in the way.

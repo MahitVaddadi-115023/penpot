@@ -108,6 +108,16 @@ docker exec "${CONTAINER}" sh -c "
 " || true
 
 # 7. Verify nginx serves it. Retry briefly in case of a beat-delay.
+# 6b. Patch missing /css/ui.css — the 2.15 image's index.html references it
+#     but the container only ships /css/main.css. Without the patch, Penpot's
+#     dashboard renders white-on-white with fonts unstyled.
+docker exec "${CONTAINER}" sh -c "
+  if [ ! -f /var/www/app/css/ui.css ] && [ -f /var/www/app/css/main.css ]; then
+    cp /var/www/app/css/main.css /var/www/app/css/ui.css
+    echo 'patched: /css/ui.css ← main.css'
+  fi
+" 2>/dev/null || true
+
 log "verifying ${MANIFEST_URL}"
 verify_ok=0
 for _i in 1 2 3 4 5; do

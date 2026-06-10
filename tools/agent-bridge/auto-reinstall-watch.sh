@@ -41,15 +41,17 @@ while true; do
           | grep -q '.'; then
     penpot_down_ticks=0
 
-    # 2. Is the same-origin manifest reachable?
+    # 2. Is the same-origin manifest reachable? And is the Penpot UI CSS
+    #    (ui.css patch) still in place? Either missing triggers reinstall.
     code="$(curl -s -o /dev/null -w '%{http_code}' "${PENPOT_URL}" || echo "000")"
-    if [ "${code}" = "200" ]; then
+    css_code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:9001/css/ui.css" || echo "000")"
+    if [ "${code}" = "200" ] && [ "${css_code}" = "200" ]; then
       if [ "${last_state}" != "ok" ]; then
         log "manifest OK (${PENPOT_URL})"
         last_state="ok"
       fi
     else
-      log "manifest unreachable (HTTP ${code}); attempting reinstall"
+      log "manifest=${code} ui.css=${css_code}; attempting reinstall"
       if bash "${INSTALL_SCRIPT}" >/tmp/agent-bridge-reinstall.log 2>&1; then
         log "reinstall succeeded"
         last_state="ok"

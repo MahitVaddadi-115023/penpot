@@ -445,7 +445,7 @@ button,input,textarea{font:inherit;color:inherit}
       <span class="dot">&middot;</span>
       <span id="ms-detail">type to compile</span>
       <span class="dot" style="margin-left:auto">&middot;</span>
-      <span class="cmdi-hint" title="Press to rewrite the current selection (or line) with AI"><kbd>⌘I</kbd> to write</span>
+      <span class="cmdi-hint" title="Press to rewrite the current selection (or line) with AI"><kbd>⌘J</kbd> to write</span>
     </div>
     <label for="markup-area" class="sr-only" id="markup-title">Markup DSL editor</label>
     <div class="markup-editor">
@@ -2312,7 +2312,7 @@ $cmdiInput.addEventListener('keydown', (e) => {
 
 // Cmd+I trigger on markup textarea.
 $markupArea.addEventListener('keydown', (e) => {
-  if ((e.metaKey || e.ctrlKey) && (e.key === 'i' || e.key === 'I')) {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J')) {
     e.preventDefault();
     openCmdi('markup');
   }
@@ -2320,7 +2320,7 @@ $markupArea.addEventListener('keydown', (e) => {
 
 // Cmd+I trigger on chat input.
 $chatInput.addEventListener('keydown', (e) => {
-  if ((e.metaKey || e.ctrlKey) && (e.key === 'i' || e.key === 'I')) {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J')) {
     e.preventDefault();
     openCmdi('chat');
   }
@@ -2349,7 +2349,7 @@ window.addEventListener('resize', () => {
 (function annotateChatPlaceholder() {
   const base = $chatInput.getAttribute('placeholder') || '';
   if (!/cmd\+i/i.test(base)) {
-    $chatInput.setAttribute('placeholder', base + '   (⌘I to rewrite)');
+    $chatInput.setAttribute('placeholder', base + '   (⌘J to rewrite)');
   }
 })();
 </script>
