@@ -708,6 +708,29 @@ window.addEventListener('message', (ev) => {
   }
 });
 
+// Tauri IDE companion (v3): markup-changed emitter.
+// Debounced 200ms broadcast of the current textarea content to the host so
+// the multi-file tab bar can track per-file dirty state and cache content
+// for Save All without re-activating each tab. No-op when no host listens
+// (postMessage to self/parent is a safe no-op outside the IDE shell).
+(function () {
+  var taSrc = document.getElementById('markup-area');
+  if (!taSrc) return;
+  var emitTimer = null;
+  taSrc.addEventListener('input', function () {
+    if (emitTimer) clearTimeout(emitTimer);
+    emitTimer = setTimeout(function () {
+      emitTimer = null;
+      try {
+        window.parent.postMessage({
+          type: 'markup-changed',
+          content: taSrc.value,
+        }, '*');
+      } catch (_) { /* host went away — ignore */ }
+    }, 200);
+  });
+})();
+
 // ---- bridge: iframe -> sandbox -----------------------------------------
 function sendToSandbox(type, content) {
   const msg = { type: type, content: content };

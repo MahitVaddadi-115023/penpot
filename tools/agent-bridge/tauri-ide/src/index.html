@@ -104,6 +104,62 @@
       background: var(--bg);
     }
 
+    /* ---------------- editor tab bar (v3 multi-file) ------------------- */
+    .tab-bar {
+      flex: 0 0 auto;
+      display: flex;
+      gap: 1px;
+      background: var(--border);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      overflow-y: hidden;
+      min-height: 28px;
+      max-height: 28px;
+    }
+    .tab-bar:empty { display: none; }
+    .tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px 4px 10px;
+      background: #252525;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      border-top: 2px solid transparent;
+      max-width: 240px;
+    }
+    .tab:hover { background: var(--panel-hover); color: var(--text); }
+    .tab.active {
+      background: #3a3146;
+      color: var(--text);
+      border-top-color: var(--accent);
+    }
+    .tab .tab-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+    .tab .tab-dirty {
+      color: var(--accent);
+      font-weight: bold;
+      min-width: 8px;
+      display: inline-block;
+    }
+    .tab .tab-close {
+      width: 16px; height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 3px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1;
+    }
+    .tab .tab-close:hover { background: #4a4a4a; color: var(--text); }
+
     /* ---------------- chat pane ---------------------------------------- */
     .chat-log {
       flex: 1 1 auto;
@@ -272,9 +328,11 @@
       <span id="editor-label">Editor</span>
       <span style="display:flex; gap:4px;">
         <button id="btn-show-plugin" title="Show full plugin UI">Plugin</button>
+        <button id="btn-save-all" title="Save all dirty files (Alt+Cmd+S)">Save All</button>
         <button id="btn-save" title="Save active markup (Cmd+S)">Save</button>
       </span>
     </div>
+    <div class="tab-bar" id="tab-bar"></div>
     <iframe class="editor-frame" id="editor-frame" src="http://localhost:9010/agent-plugin/index.html"></iframe>
   </main>
 
@@ -351,7 +409,12 @@
 
     // ----- state -----------------------------------------------------------
     let markups = [];
-    let activeFile = null;
+    // Open files: filename → { content, dirty, lastSavedContent }.
+    // `content` is the live editor content (updated via the plugin's
+    // `markup-changed` postMessage). `lastSavedContent` is what's on disk
+    // (updated on successful write). `dirty` is just (content !== lastSavedContent).
+    const openFiles = new Map();
+    let activeFile = null;       // filename of the currently-displayed tab
     let saveResolver = null;     // resolves with the plugin's save-markup-response
     let chatModels = [];
     let chatInFlight = false;
@@ -420,6 +483,19 @@
       if (!d || typeof d !== 'object') return;
       if (d.type === 'save-markup-response') {
         if (saveResolver) saveResolver({ filename: d.filename, content: d.content });
+      } else if (d.type === 'markup-changed' && typeof d.content === 'string') {
+        // The plugin reports textarea content (debounced 200ms). Always
+        // attribute changes to the active file. If the plugin is showing
+        // its own UI (no active file), ignore.
+        if (!activeFile) return;
+        const f = openFiles.get(activeFile);
+        if (!f) return;
+        // Ignore echoes of load-markup (content matches last-saved exactly
+        // AND matches our last-known content — i.e. nothing actually changed).
+        if (d.content === f.content) return;
+        f.content = d.content;
+        f.dirty = (f.content !== f.lastSavedContent);
+        renderTabs();
       }
     });
 
@@ -451,18 +527,100 @@
       setStatus('Ready — ' + markups.length + ' markup(s)', 'ok');
     }
 
+    // ----- multi-file tabs (v3) -------------------------------------------
+    // openFiles is the source of truth for what's open + dirty state. The
+    // tab bar is rendered from it on every change. Activating a tab posts
+    // its cached content to the editor iframe (no disk round-trip), which
+    // makes tab switching instant and survives unsaved edits.
+    function renderTabs() {
+      const bar = $('tab-bar');
+      bar.innerHTML = '';
+      for (const [name, file] of openFiles) {
+        const tab = document.createElement('div');
+        tab.className = 'tab' + (name === activeFile ? ' active' : '');
+        tab.title = name + (file.dirty ? ' (unsaved changes)' : '');
+
+        const dot = document.createElement('span');
+        dot.className = 'tab-dirty';
+        dot.textContent = file.dirty ? '•' : '';
+        tab.appendChild(dot);
+
+        const nm = document.createElement('span');
+        nm.className = 'tab-name';
+        nm.textContent = name;
+        tab.appendChild(nm);
+
+        const x = document.createElement('span');
+        x.className = 'tab-close';
+        x.textContent = '×';
+        x.title = 'Close';
+        x.addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeTab(name);
+        });
+        tab.appendChild(x);
+
+        tab.addEventListener('click', () => activateTab(name));
+        bar.appendChild(tab);
+      }
+    }
+
+    function activateTab(name) {
+      const file = openFiles.get(name);
+      if (!file) return;
+      activeFile = name;
+      // Push the cached content into the editor iframe. The plugin's
+      // companion listener handles load-markup → textarea.value. Bumps
+      // input event downstream; the markup-changed echo is filtered out
+      // by the equality check in the message handler.
+      postToEditor({ type: 'load-markup', content: file.content });
+      $('editor-label').textContent = 'Editor — ' + name + (file.dirty ? ' •' : '');
+      setActive(name);
+      renderTabs();
+      refreshTree(); // re-renders tree-item .active highlighting
+    }
+
+    function closeTab(name) {
+      const file = openFiles.get(name);
+      if (!file) return;
+      if (file.dirty) {
+        const ok = window.confirm('Discard unsaved changes to ' + name + '?');
+        if (!ok) return;
+      }
+      openFiles.delete(name);
+      if (activeFile === name) {
+        // Pick the next available tab (last opened), or fall back to plugin UI.
+        const remaining = Array.from(openFiles.keys());
+        if (remaining.length) {
+          activateTab(remaining[remaining.length - 1]);
+        } else {
+          activeFile = null;
+          $('editor-label').textContent = 'Editor';
+          setActive('plugin UI');
+          renderTabs();
+          refreshTree();
+        }
+      } else {
+        renderTabs();
+      }
+    }
+
     async function openFile(name) {
+      // If already open, just activate that tab.
+      if (openFiles.has(name)) {
+        activateTab(name);
+        emitLog('info', 'switched to ' + name);
+        return;
+      }
       try {
         const content = await invoke('read_markup', { name });
-        activeFile = name;
-        // Drive the plugin's #markup-area via postMessage (Tauri IDE companion
-        // listener). Falls back gracefully: if the plugin isn't loaded yet,
-        // the message is dropped and the user can re-click.
-        postToEditor({ type: 'load-markup', content: content });
-        $('editor-label').textContent = 'Editor — ' + name;
-        setActive(name);
+        openFiles.set(name, {
+          content: content,
+          lastSavedContent: content,
+          dirty: false,
+        });
+        activateTab(name);
         emitLog('info', 'opened ' + name);
-        await refreshTree();
       } catch (e) {
         setStatus('read_markup failed: ' + e, 'err');
       }
@@ -472,6 +630,7 @@
       activeFile = null;
       $('editor-label').textContent = 'Editor';
       setActive('plugin UI');
+      renderTabs();
       refreshTree();
     }
 
@@ -486,6 +645,7 @@
       try {
         const seed = '# ' + name + '\n\n';
         await invoke('write_markup', { name, content: seed });
+        await refreshTree();
         await openFile(name);
       } catch (e) {
         setStatus('write_markup failed: ' + e, 'err');
@@ -510,10 +670,66 @@
       }
       try {
         await invoke('write_markup', { name: activeFile, content: payload.content });
+        const f = openFiles.get(activeFile);
+        if (f) {
+          f.content = payload.content;
+          f.lastSavedContent = payload.content;
+          f.dirty = false;
+          renderTabs();
+          $('editor-label').textContent = 'Editor — ' + activeFile;
+        }
         setStatus('Saved ' + activeFile + ' (' + payload.content.length + ' chars)', 'ok');
         emitLog('info', 'saved ' + activeFile);
       } catch (e) {
         setStatus('save failed: ' + e, 'err');
+      }
+    }
+
+    // Save All: walks every dirty tab and persists its cached content.
+    // The active tab is saved via the regular plugin round-trip so any
+    // edits younger than the last markup-changed debounce window land too;
+    // inactive tabs use the cached `content` directly (the plugin only
+    // holds the active file). Status bar reports the count.
+    async function saveAll() {
+      // First, flush the active tab via the plugin (catches anything still
+      // in the 200ms debounce window since the last markup-changed emit).
+      if (activeFile) {
+        try {
+          const payload = await requestSaveFromEditor(activeFile, 2000);
+          if (payload && typeof payload.content === 'string') {
+            const f = openFiles.get(activeFile);
+            if (f) f.content = payload.content;
+          }
+        } catch (e) {
+          // Plugin not ready — fall back to whatever we have cached.
+          emitLog('warn', 'saveAll: plugin save round-trip failed (' + e.message + '); using cached content');
+        }
+      }
+      let saved = 0;
+      let failed = 0;
+      for (const [name, file] of openFiles) {
+        if (!file.dirty && file.lastSavedContent === file.content) continue;
+        try {
+          await invoke('write_markup', { name, content: file.content });
+          file.lastSavedContent = file.content;
+          file.dirty = false;
+          saved++;
+        } catch (e) {
+          failed++;
+          emitLog('error', 'saveAll: ' + name + ' failed: ' + e);
+        }
+      }
+      renderTabs();
+      if (activeFile) {
+        const f = openFiles.get(activeFile);
+        if (f) $('editor-label').textContent = 'Editor — ' + activeFile + (f.dirty ? ' •' : '');
+      }
+      if (failed > 0) {
+        setStatus('Saved ' + saved + ' file(s), ' + failed + ' failed', 'err');
+      } else if (saved === 0) {
+        setStatus('No dirty files to save', 'ok');
+      } else {
+        setStatus('Saved ' + saved + ' file(s)', 'ok');
       }
     }
 
@@ -730,11 +946,13 @@
         const step = (s && s.status && s.status.currentStep) || 0;
         const total = (s && s.status && s.status.totalSteps) || 0;
         const progress = total ? (step + '/' + total) : ('step ' + step);
-        const kind = (state === 'completed') ? 'ok' : (state === 'failed' ? 'err' : '');
+        const kind = (state === 'completed') ? 'ok' : ((state === 'failed' || state === 'cancelled') ? 'err' : '');
         setAgentState(state + ' · ' + progress, kind);
-        if (state === 'completed' || state === 'failed') {
+        if (state === 'completed' || state === 'failed' || state === 'cancelled') {
           const detail = (s && s.result && (s.result.summary || s.result.error)) || '';
-          chatAppend(state === 'completed' ? 'assistant' : 'error',
+          const role = (state === 'completed') ? 'assistant'
+                     : (state === 'cancelled') ? 'system' : 'error';
+          chatAppend(role,
                      'agent ' + id + ' ' + state + (detail ? ('\n\n' + detail) : ''),
                      { label: 'agent' });
           agentPollId = null;
@@ -748,16 +966,56 @@
       }
     }
 
-    function agentStop() {
+    // Stop button: cancels the active agent server-side via newcore's
+    // /agents/:id/cancel endpoint (v3), then stops polling either way.
+    async function agentStop() {
       if (!agentPollId) {
         setAgentState('idle');
         return;
       }
       const id = agentPollId;
+      // Stop polling first — we'll surface the cancel result independently.
       agentPollId = null;
       if (agentPollTimer) { clearTimeout(agentPollTimer); agentPollTimer = null; }
-      setAgentState('polling stopped (run continues server-side)');
-      chatAppend('system', 'stopped polling agent ' + id + ' — newcore has no /agents/:id/cancel yet');
+      try {
+        const r = await fetch(NEWCORE_BASE + '/agents/' + encodeURIComponent(id) + '/cancel', {
+          method: 'POST',
+        });
+        if (r.ok) {
+          let body = null;
+          try { body = await r.json(); } catch (_) {}
+          const state = body && body.state ? body.state : 'unknown';
+          if (body && body.ok && state === 'cancelled') {
+            setAgentState('cancelled', 'ok');
+            chatAppend('system', 'Agent cancelled.');
+          } else if (body && body.ok) {
+            // Cancel accepted but not yet observed in the run loop — likely
+            // mid-step. State will flip to 'cancelled' on the next boundary.
+            setAgentState('cancelling…');
+            chatAppend('system', 'Agent cancelled.');
+          } else {
+            // ok:false → agent was already in a terminal state. Honest signal.
+            setAgentState('idle');
+            chatAppend('system', 'Agent already ' + state + ' (nothing to cancel).');
+          }
+        } else if (r.status === 404) {
+          // Endpoint exists but agent unknown (or endpoint missing on older
+          // newcore). Either way, polling stopped is the right behavior.
+          let detail = 'HTTP 404';
+          try { const j = await r.json(); detail += ' — ' + (j.error || JSON.stringify(j)); } catch (_) {}
+          setAgentState('polling stopped — run may continue server-side');
+          chatAppend('system', 'stopped polling agent ' + id + ' — cancel returned ' + detail);
+        } else {
+          let detail = 'HTTP ' + r.status;
+          try { const j = await r.json(); detail += ' — ' + (j.error || JSON.stringify(j)); } catch (_) {}
+          setAgentState('polling stopped — run may continue server-side');
+          chatAppend('system', 'stopped polling agent ' + id + ' — cancel failed: ' + detail);
+        }
+      } catch (e) {
+        // Network failure: be honest the run may still be alive server-side.
+        setAgentState('polling stopped — run may continue server-side');
+        chatAppend('system', 'stopped polling agent ' + id + ' — cancel fetch failed: ' + (e && e.message || String(e)));
+      }
     }
 
     // ----- Tauri event wiring ---------------------------------------------
@@ -765,7 +1023,7 @@
       if (!TAURI) return;
       await listen('menu-new-markup',     () => newMarkup());
       await listen('menu-save',           () => saveActive());
-      await listen('menu-save-all',       () => saveActive()); // v2 = same as save (single open file)
+      await listen('menu-save-all',       () => saveAll());
       await listen('menu-open-workspace', () => canvasOpenExternal());
       await listen('toggle-pane',         (e) => togglePane(e.payload));
       await listen('agent-start',         () => showAgentModal());
@@ -790,6 +1048,7 @@
     $('btn-refresh').addEventListener('click', refreshTree);
     $('btn-new').addEventListener('click', newMarkup);
     $('btn-save').addEventListener('click', saveActive);
+    $('btn-save-all').addEventListener('click', saveAll);
     $('btn-show-plugin').addEventListener('click', showPlugin);
     $('btn-reload-canvas').addEventListener('click', reloadCanvas);
     $('btn-canvas-fullscreen').addEventListener('click', canvasOpenExternal);
@@ -811,6 +1070,12 @@
     });
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && $('agent-modal').classList.contains('show')) hideAgentModal();
+      // Save All: Alt+Cmd+S / Alt+Ctrl+S. (Plain Cmd+S is already handled by
+      // the native menu accelerator → menu-save event.)
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        saveAll();
+      }
     });
 
     (async () => {
