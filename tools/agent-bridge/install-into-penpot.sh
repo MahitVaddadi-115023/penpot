@@ -79,6 +79,27 @@ docker exec "${CONTAINER}" sh -c "rm -rf '${DEST_DIR}' && mkdir -p '${DEST_DIR}'
 log "copying ${PLUGIN_SRC}/ → ${CONTAINER}:${DEST_DIR}/"
 docker cp "${PLUGIN_SRC}/." "${CONTAINER}:${DEST_DIR}/"
 
+# 5b. Rewrite manifest.json to strip the dev-server `host` field. With `host`
+#     pointing at :9010, Penpot would resolve `code` cross-origin and the whole
+#     same-origin install becomes pointless. Without `host`, Penpot uses the
+#     manifest URL as the base → `code: plugin.js` resolves to
+#     /plugins/agent-bridge/plugin.js (same-origin).
+log "stripping dev-server host from served manifest (keeps source unchanged)"
+docker exec "${CONTAINER}" sh -c "
+  python3 -c \"
+import json, sys
+p = '${DEST_DIR}/manifest.json'
+m = json.load(open(p))
+m.pop('host', None)
+json.dump(m, open(p, 'w'), indent=2)
+print('stripped host from', p)
+\" 2>/dev/null || (
+    # Fallback if no python3 in container — use sed.
+    sed -i '/\"host\":/d' '${DEST_DIR}/manifest.json'
+    echo 'stripped host via sed'
+  )
+"
+
 # 6. Permissions: nginx must be able to read. The frontend image runs as
 #    the `penpot` user but the doc root is world-readable by default; we
 #    still chmod defensively so docker cp's preserved perms don't bite us.

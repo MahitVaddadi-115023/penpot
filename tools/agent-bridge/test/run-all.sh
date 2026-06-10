@@ -22,6 +22,7 @@ DESC[t12-agents-lifecycle]="agent lifecycle (create → completed)"
 DESC[t13-agent-tool-roundtrip]="agent → bridge → plugin round-trip"
 DESC[t14-penpot-load]="Penpot workspace loads (Playwright)"
 DESC[t15-plugin-load]="Antigravity Bridge plugin loads in Penpot"
+DESC[t15b-same-origin]="F2 fix: same-origin manifest reachable + host-stripped"
 DESC[t16-forward-render]="forward render: DSL → canvas mutation"
 
 echo "${BOLD}─── Agent Bridge Test Suite ───${NC}"
