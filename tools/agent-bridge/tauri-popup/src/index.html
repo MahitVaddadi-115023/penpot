@@ -127,6 +127,53 @@
       0%, 100% { opacity: 0.3; }
       50% { opacity: 1; }
     }
+    /* First-run banner: shown when macOS Accessibility permission is missing,
+       so the user knows why auto-paste won't fire. */
+    .ax-banner {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      background: #3a2a3a;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--text);
+    }
+    .ax-banner.show { display: flex; }
+    .ax-banner .ax-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ax-banner .ax-msg { flex: 1; }
+    .ax-banner button {
+      background: var(--accent);
+      color: #1a1a1a;
+      border: 0;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .ax-banner button.secondary {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .ax-banner .ax-hint {
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .ax-banner .ax-hint:empty { display: none; }
+    .manual-paste-footer {
+      display: none;
+      font-size: 11px;
+      color: var(--accent);
+      padding: 4px 2px 0;
+    }
+    .manual-paste-footer.show { display: block; }
   </style>
 </head>
 <body>
@@ -135,6 +182,14 @@
       <div class="title">Antigravity</div>
       <div class="shortcut-hint">Esc to close, Cmd+Enter to send</div>
     </div>
+    <div id="ax-banner" class="ax-banner" role="status">
+      <div class="ax-row">
+        <span class="ax-msg">&#9888; Auto-paste needs Accessibility permission.</span>
+        <button id="ax-grant" type="button">Grant&hellip;</button>
+        <button id="ax-skip" class="secondary" type="button">Skip</button>
+      </div>
+      <div id="ax-hint" class="ax-hint"></div>
+    </div>
     <div id="draft" class="draft-preview empty">(no draft on clipboard, type your prompt)</div>
     <textarea id="prompt" placeholder="Rewrite, summarize, fix, translate, then Cmd+Enter"></textarea>
     <div class="row">
@@ -142,6 +197,7 @@
       <div id="status" class="status"></div>
       <button id="send" class="send-btn">Send</button>
     </div>
+    <div id="manual-paste-footer" class="manual-paste-footer"></div>
   </div>
 
   <script>
@@ -154,13 +210,54 @@
     const $send = document.getElementById('send');
     const $status = document.getElementById('status');
     const $draft = document.getElementById('draft');
+    const $axBanner = document.getElementById('ax-banner');
+    const $axGrant = document.getElementById('ax-grant');
+    const $axSkip = document.getElementById('ax-skip');
+    const $axHint = document.getElementById('ax-hint');
+    const $manualPasteFooter = document.getElementById('manual-paste-footer');
 
     let draftText = '';
     let currentModels = [];
+    // Cached result of check_accessibility() at popup-open time.
+    // null = unknown, true = granted, false = denied (banner showing).
+    let axGranted = null;
+    // Did the user dismiss the banner this session? We don't persist —
+    // they get a fresh check next launch in case permission changed.
+    let axBannerDismissed = false;
 
     function setStatus(msg, kind) {
       $status.className = 'status' + (kind ? ' ' + kind : '');
       $status.textContent = msg || '';
+    }
+
+    function showAxBanner(show) {
+      if (show && !axBannerDismissed) {
+        $axBanner.classList.add('show');
+      } else {
+        $axBanner.classList.remove('show');
+      }
+    }
+
+    function setManualPasteFooter(msg) {
+      if (msg) {
+        $manualPasteFooter.textContent = msg;
+        $manualPasteFooter.classList.add('show');
+      } else {
+        $manualPasteFooter.textContent = '';
+        $manualPasteFooter.classList.remove('show');
+      }
+    }
+
+    async function refreshAccessibility() {
+      try {
+        const ok = await invoke('check_accessibility');
+        axGranted = !!ok;
+      } catch {
+        // If the command itself errored, assume worst case so we still warn.
+        axGranted = false;
+      }
+      showAxBanner(axGranted === false);
+      return axGranted;
     }
 
     function setDraftPreview(text) {
@@ -212,7 +309,12 @@
 
     async function onOpen() {
       setStatus('');
+      setManualPasteFooter('');
+      $axHint.textContent = '';
       $prompt.value = '';
+      // Recheck AX permission each time the popup opens. Cheap (one osascript)
+      // and ensures we react if the user toggled the permission since last open.
+      refreshAccessibility();
       await captureClipboardDraft();
       // small async gap so the window has actually appeared before focusing
       setTimeout(() => $prompt.focus(), 30);
@@ -240,9 +342,28 @@
           draft: draftText,
         });
         setStatus('pasting...');
-        await invoke('paste_result', { text: result });
+        // paste_result now returns { ok, pasted, error } so we can distinguish
+        // "clipboard set but AX-blocked" from a hard failure.
+        const outcome = await invoke('paste_result', { text: result }) || {};
+        if (outcome.ok === false) {
+          setStatus(outcome.error || 'Paste failed.', 'error');
+        } else if (outcome.pasted === false) {
+          // Clipboard has the result but the keystroke didn't fire.
+          // Surface the manual-paste hint so the user isn't left in the dark.
+          setManualPasteFooter(
+            'Result copied to clipboard — press Cmd+V to paste manually.'
+          );
+          // Also keep the banner visible so they can grant permission next time.
+          if (axGranted === false || outcome.error) {
+            showAxBanner(true);
+          }
+        }
         // paste_result hides the popup itself, but call hide_popup defensively
-        await invoke('hide_popup');
+        // only when we actually completed cleanly with a keystroke. If the user
+        // needs to read the manual-paste hint, leave the window up.
+        if (outcome.pasted) {
+          await invoke('hide_popup');
+        }
       } catch (err) {
         setStatus(String(err), 'error');
       } finally {
@@ -252,6 +373,20 @@
 
     // wire up events
     $send.addEventListener('click', submit);
+    $axGrant.addEventListener('click', async () => {
+      try {
+        await invoke('open_accessibility_settings');
+        $axHint.textContent =
+          'Toggle Antigravity Popup on, then close this and try again.';
+      } catch (err) {
+        $axHint.textContent = 'Could not open settings: ' + String(err);
+      }
+    });
+    $axSkip.addEventListener('click', () => {
+      // Session-only dismiss; we recheck next launch in case the user grants it.
+      axBannerDismissed = true;
+      showAxBanner(false);
+    });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         invoke('hide_popup');

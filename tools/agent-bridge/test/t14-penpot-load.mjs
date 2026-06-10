@@ -36,6 +36,15 @@ await mkdir(SCREENS, { recursive: true });
 const LOGIN_URL = 'http://localhost:9001/auto-login.html';
 const TIMEOUT_MS = 20000;
 
+// Container-age heuristic: a freshly-restarted Penpot (< FRESH_SEC) should
+// reliably load the workspace within budget. If it doesn't, that's a real
+// regression — don't SKIP, FAIL. Long-running containers (after hours of
+// plugin churn) degrade unpredictably, so timeouts there stay env-sensitive.
+const FRESH_SEC = 300;
+const penpotAge = parseInt(process.env.PENPOT_AGE_SEC || '999999', 10);
+const fresh = penpotAge < FRESH_SEC;
+console.log(`[t14] Penpot container age: ${penpotAge}s (${fresh ? 'FRESH — must pass' : 'OLD — env-sensitive, may SKIP'})`);
+
 const browser = await chromium.launch({ headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
 const page = await ctx.newPage();
@@ -85,13 +94,20 @@ try {
   // Penpot's SPA boot can take 20-60s depending on cache / container state.
   // After many plugin install/uninstall cycles, containers degrade and the
   // load event lags well past any reasonable budget. Classify SPA-load
-  // timeouts as SKIP (environment-sensitive) rather than FAIL — the test
-  // tells us nothing actionable in that case.
+  // timeouts as SKIP (environment-sensitive) rather than FAIL — UNLESS the
+  // container is fresh (< FRESH_SEC), in which case a timeout is a real
+  // regression and we must FAIL.
   const isTimeout = /Timeout \d+ms exceeded|page\.waitForURL/.test(e.message || '');
-  verdict = isTimeout ? 'SKIP' : 'FAIL';
-  reason = isTimeout
-    ? `Penpot SPA didn't load within budget (env-sensitive): ${e.message.split('\n')[0]}`
-    : `exception: ${e.message}`;
+  if (isTimeout && fresh) {
+    verdict = 'FAIL';
+    reason = `Penpot is fresh (${penpotAge}s < ${FRESH_SEC}s) so this timeout is a real regression, not env-sensitivity: ${e.message.split('\n')[0]}`;
+  } else if (isTimeout) {
+    verdict = 'SKIP';
+    reason = `Penpot SPA didn't load within budget (env-sensitive, container age ${penpotAge}s): ${e.message.split('\n')[0]}`;
+  } else {
+    verdict = 'FAIL';
+    reason = `exception: ${e.message}`;
+  }
   try { await page.screenshot({ path: `${SCREENS}/t14-fail.png` }); } catch {}
 }
 

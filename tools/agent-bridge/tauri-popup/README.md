@@ -24,15 +24,31 @@ This is app **#1** of the 3-app sequence (popup -> plugin wrapper -> full IDE).
   - `POST /chat` body `{ model, message }` -> `{ content: "..." }`
 - **macOS Accessibility permission** for the binary (or `Terminal.app` in dev) — otherwise the auto-paste keystroke won't fire. See "First run" below.
 
-## First run (Accessibility permission)
+## First-run setup (Accessibility permission)
 
-The auto-paste step calls `osascript -e 'tell application "System Events" to keystroke "v" using command down'`. macOS gates synthetic keystrokes behind Accessibility.
+The auto-paste step calls `osascript -e 'tell application "System Events" to keystroke "v" using command down'`. macOS gates synthetic keystrokes behind **Accessibility**. Without it, the `osascript` exits non-zero and nothing pastes — historically this looked to the user like "submit said done but nothing happened".
 
-1. **System Settings** -> **Privacy & Security** -> **Accessibility**
-2. Add the built `.app` (or your terminal during `tauri dev`) and toggle it ON.
-3. Restart the app once after granting.
+The popup now detects this on every open and surfaces a banner above the input:
 
-Without this permission, the model response will still land on your clipboard (you can Cmd+V manually), but you'll get an error toast in the popup.
+```
+⚠ Auto-paste needs Accessibility permission. [Grant…] [Skip]
+```
+
+- **Grant…** opens **System Settings -> Privacy & Security -> Accessibility** directly (via `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility`).
+- **Skip** dismisses the banner for this session only — it'll show again next launch if permission is still missing.
+
+In the System Settings pane you'll see a list of apps with an on/off toggle. Find the one that's running the popup and turn it on:
+
+- **Dev (`npm run tauri dev`)**: the permission applies to the **Terminal app** (or iTerm2 / your shell host) that's running `cargo`. macOS attributes synthesized keystrokes to the parent process, not the Tauri webview.
+- **Production (bundled `.app`)**: the permission applies to **Antigravity Popup.app** itself. Drag it into the Accessibility list (or use the `+` button) and toggle on.
+
+After granting, you don't need to restart — just reopen the popup with Cmd+Opt+I, and the banner should disappear on its own (the popup rechecks on every open).
+
+If auto-paste is unavailable, the popup still writes the result to your clipboard and shows:
+
+> Result copied to clipboard — press Cmd+V to paste manually.
+
+…so you always get the output even on a fresh, ungranted machine.
 
 ## Develop
 
@@ -83,8 +99,11 @@ tauri-popup/
 
 - `get_models() -> Vec<String>`
 - `submit_instruction(instruction, model, draft) -> String`
-- `paste_result(text) -> ()` (writes clipboard, hides popup, synthesizes Cmd+V)
+- `paste_result(text) -> { ok: bool, pasted: bool, error: string | null }`
+  - Writes the result to the clipboard, then synthesizes Cmd+V **only if** Accessibility is granted. `pasted: false` means clipboard is set but the user needs to press Cmd+V themselves.
 - `hide_popup() -> ()`
+- `check_accessibility() -> bool` — runs a no-op `osascript` against System Events to probe AX. Always `true` on non-macOS.
+- `open_accessibility_settings() -> ()` — opens System Settings to the Accessibility pane on macOS 13+.
 
 ## Known gaps
 

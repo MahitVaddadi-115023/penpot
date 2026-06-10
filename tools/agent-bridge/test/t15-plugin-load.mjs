@@ -52,6 +52,15 @@ if (!chromium) { console.log('RESULT: SKIP (no playwright)'); process.exit(0); }
 const SCREENS = '/tmp/agent-bridge-test-screenshots';
 await mkdir(SCREENS, { recursive: true });
 
+// Container-age heuristic: a freshly-restarted Penpot (< FRESH_SEC) should
+// reliably load the plugins-runtime within budget. If it doesn't, that's a
+// real regression — don't SKIP, FAIL. Long-running containers (after hours
+// of plugin churn) degrade unpredictably, so timeouts there stay env-sensitive.
+const FRESH_SEC = 300;
+const penpotAge = parseInt(process.env.PENPOT_AGE_SEC || '999999', 10);
+const fresh = penpotAge < FRESH_SEC;
+console.log(`[t15] Penpot container age: ${penpotAge}s (${fresh ? 'FRESH — must pass' : 'OLD — env-sensitive, may SKIP'})`);
+
 const PENPOT  = 'http://localhost:9001';
 const BRIDGE  = 'http://localhost:9010';
 // Bridge dev-server hosts the iframe + plugin.js. Using :9010 means the
@@ -217,11 +226,20 @@ try {
   // past any reasonable budget. Classify "environment timeout" exits as SKIP
   // — substance is covered by T15b (same-origin reachability) and standalone
   // T15 runs from a fresh Penpot (which pass at ~3.7s).
+  //
+  // Exception: if the container is fresh (< FRESH_SEC), an env timeout is a
+  // real regression and must FAIL.
   const envTimeout = /never exposed ɵloadPlugin|never reached|never loaded into|never flipped to|Timeout \d+ms exceeded/.test(e.message || '');
-  verdict = envTimeout ? 'SKIP' : 'FAIL';
-  reason = envTimeout
-    ? `Penpot/plugins-runtime didn't ready within budget (env-sensitive): ${e.message.split('\n')[0]}`
-    : `exception: ${e.message}`;
+  if (envTimeout && fresh) {
+    verdict = 'FAIL';
+    reason = `Penpot is fresh (${penpotAge}s < ${FRESH_SEC}s) so this timeout is a real regression, not env-sensitivity: ${e.message.split('\n')[0]}`;
+  } else if (envTimeout) {
+    verdict = 'SKIP';
+    reason = `Penpot/plugins-runtime didn't ready within budget (env-sensitive, container age ${penpotAge}s): ${e.message.split('\n')[0]}`;
+  } else {
+    verdict = 'FAIL';
+    reason = `exception: ${e.message}`;
+  }
   try { await page.screenshot({ path: `${SCREENS}/t15-fail.png` }); } catch {}
 }
 

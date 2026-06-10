@@ -7,8 +7,10 @@
 //   4. Frontend invokes Tauri commands:
 //        - get_models()                                       -> Vec<String>
 //        - submit_instruction(instruction, model, draft)      -> String (rewritten)
-//        - paste_result(text)                                 -> ()      (clipboard + osa keystroke)
+//        - paste_result(text)                                 -> PasteOutcome { ok, pasted, error }
 //        - hide_popup()                                       -> ()
+//        - check_accessibility()                              -> bool
+//        - open_accessibility_settings()                      -> ()
 //
 // newcore is assumed to be running on http://localhost:3777.
 //   - GET  /info        -> { models: [{ id }] }
@@ -107,37 +109,123 @@ async fn submit_instruction(
     Ok(chat.content)
 }
 
-// ---------- paste back into focused app ------------------------------------
+// ---------- accessibility permission probe ---------------------------------
+//
+// macOS only. The auto-paste step calls AppleScript / System Events to
+// synthesize Cmd+V, which requires the *running* process (Terminal in dev,
+// the bundled .app in release) to be granted Accessibility in
+// System Settings > Privacy & Security > Accessibility.
+//
+// We probe with a side-effect-free script: "name of frontmost process".
+// If permission is missing, osascript exits non-zero (typically -1743).
 
 #[tauri::command]
-async fn paste_result(app: AppHandle, text: String) -> Result<(), String> {
-    // 1) put result on clipboard
-    app.clipboard()
-        .write_text(text)
-        .map_err(|e| format!("clipboard write failed: {e}"))?;
+fn check_accessibility() -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let out = Command::new("osascript")
+            .args([
+                "-e",
+                "tell application \"System Events\" to name of first process whose frontmost is true",
+            ])
+            .output();
+        match out {
+            Ok(o) if o.status.success() => Ok(true),
+            Ok(_) => Ok(false),
+            Err(_) => Ok(false),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(true)
+    }
+}
+
+#[tauri::command]
+fn open_accessibility_settings() -> Result<(), String> {
+    // Opens System Settings → Privacy & Security → Accessibility on macOS 13+.
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            .status()
+            .map_err(|e| format!("open settings failed: {}", e))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(())
+    }
+}
+
+// ---------- paste back into focused app ------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct PasteOutcome {
+    /// Whole operation completed without a hard error (clipboard write succeeded).
+    ok: bool,
+    /// Whether the synthetic Cmd+V keystroke was actually fired.
+    /// false means: clipboard was set, but Accessibility permission is missing,
+    /// so the user needs to press Cmd+V themselves.
+    pasted: bool,
+    /// Optional error string for the case where even the clipboard write fails.
+    error: Option<String>,
+}
+
+#[tauri::command]
+async fn paste_result(app: AppHandle, text: String) -> Result<PasteOutcome, String> {
+    // 1) put result on clipboard — this part has no AX dependency.
+    if let Err(e) = app.clipboard().write_text(text) {
+        return Ok(PasteOutcome {
+            ok: false,
+            pasted: false,
+            error: Some(format!("clipboard write failed: {e}")),
+        });
+    }
 
     // 2) hide our popup so the previously-focused app regains key focus
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.hide();
     }
 
-    // 3) tiny delay so the OS focus actually moves before we synthesize Cmd+V
+    // 3) gate the keystroke synthesis on AX permission. If we don't have it,
+    //    osascript would fail silently from the user's POV ("said done, nothing
+    //    pasted"). Better to skip cleanly and let the frontend tell the user
+    //    "press Cmd+V manually".
+    if !check_accessibility().unwrap_or(false) {
+        return Ok(PasteOutcome {
+            ok: true,
+            pasted: false,
+            error: None,
+        });
+    }
+
+    // 4) tiny delay so the OS focus actually moves before we synthesize Cmd+V
     std::thread::sleep(std::time::Duration::from_millis(120));
 
-    // 4) trigger Cmd+V in the now-foreground app via AppleScript
-    //    NOTE: requires Accessibility permission (System Settings > Privacy & Security > Accessibility).
+    // 5) trigger Cmd+V in the now-foreground app via AppleScript
     let out = Command::new("osascript")
         .arg("-e")
         .arg(r#"tell application "System Events" to keystroke "v" using command down"#)
         .output()
         .map_err(|e| format!("osascript spawn failed: {e}"))?;
     if !out.status.success() {
-        return Err(format!(
-            "osascript failed (need Accessibility permission?): {}",
-            String::from_utf8_lossy(&out.stderr)
-        ));
+        // AX could have been revoked between probe & keystroke, or System Events
+        // misbehaved. Clipboard is still set, so report it as "not pasted".
+        return Ok(PasteOutcome {
+            ok: true,
+            pasted: false,
+            error: Some(format!(
+                "osascript failed (need Accessibility permission?): {}",
+                String::from_utf8_lossy(&out.stderr)
+            )),
+        });
     }
-    Ok(())
+    Ok(PasteOutcome {
+        ok: true,
+        pasted: true,
+        error: None,
+    })
 }
 
 // ---------- hide popup -----------------------------------------------------
@@ -202,7 +290,9 @@ pub fn run() {
             get_models,
             submit_instruction,
             paste_result,
-            hide_popup
+            hide_popup,
+            check_accessibility,
+            open_accessibility_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

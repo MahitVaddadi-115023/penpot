@@ -5,6 +5,11 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$DIR/lib.sh"
 
 echo "${BOLD}T14 — Penpot workspace load (Playwright)${NC}"
+# Pass container age to the .mjs so it can distinguish a fresh restart (where
+# SPA boot timeouts are real regressions → FAIL) from a long-running container
+# (where they're env-sensitive → SKIP). See lib.sh:penpot_uptime_seconds.
+PENPOT_AGE_SEC="$(penpot_uptime_seconds)"
+export PENPOT_AGE_SEC
 node "$DIR/t14-penpot-load.mjs" 2>&1 | tee /tmp/agent-bridge-t14.log
 # The .mjs script already prints a "RESULT: <code>" line.
 # Make sure THIS script's last line is also a RESULT: line.

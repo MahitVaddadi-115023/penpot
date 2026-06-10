@@ -24,6 +24,8 @@ DESC[t14-penpot-load]="Penpot workspace loads (Playwright)"
 DESC[t15-plugin-load]="Antigravity Bridge plugin loads in Penpot"
 DESC[t15b-same-origin]="F2 fix: same-origin manifest reachable + host-stripped"
 DESC[t16-forward-render]="forward render: DSL → canvas mutation"
+DESC[t17-agent-cancel]="POST /agents/:id/cancel → cancelled state + log artifact"
+DESC[t18-heuristic]="penpot uptime helper sanity"
 
 echo "${BOLD}─── Agent Bridge Test Suite ───${NC}"
 SUITE_START=$(python3 -c 'import time; print(time.time())')
