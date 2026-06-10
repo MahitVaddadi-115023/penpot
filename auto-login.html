@@ -189,14 +189,23 @@
 
         // 3. Ensure an MCP access token exists (needed for init-mcp to start the plugin).
         //    get-current-mcp-token returns 204 (null) when none exist — create one if missing.
+        //    Wrap in try/catch so a transient backend hiccup here can't block the
+        //    workspace redirect — login already succeeded and the auth cookie is set.
         sub("Checking MCP token…");
-        const mcpToken = await rpc("get-current-mcp-token", {}).catch(() => null);
-        if (!mcpToken?.token) {
-          await rpc("create-access-token", { name: "mcp-local", type: "mcp" }).catch(() => null);
+        try {
+          const mcpToken = await rpc("get-current-mcp-token", {}).catch(() => null);
+          if (!mcpToken?.token) {
+            await rpc("create-access-token", { name: "mcp-local", type: "mcp" }).catch(() => null);
+          }
+        } catch (e) {
+          console.warn("[auto-login] MCP token step failed (non-fatal):", e.message);
         }
 
         // 4. Idempotently ensure all auto-install plugins are registered AND mcp-enabled is true.
         //    Single update-profile-props call covers everything to avoid races.
+        //    Wrap the entire plugin-install block so a transit-payload validation
+        //    failure or a transient 400/500 doesn't block the workspace redirect.
+        try {
         const existingIds  = Array.isArray(existing.ids) ? existing.ids : [];
         const existingData = (existing.data && typeof existing.data === "object") ? existing.data : {};
         const mergedIds    = [...existingIds];
@@ -256,6 +265,10 @@
         }
         // Surface registration status on the page for debug visibility.
         console.log("[auto-login] plugin registration:\n" + installed.join("\n"));
+        } catch (e) {
+          console.warn("[auto-login] plugin install step failed (non-fatal — workspace still loads):", e.message);
+          sub("Plugin setup deferred — opening workspace…");
+        }
 
         // 4. Done — redirect to Portfolio Design workspace. We deliberately
         // do NOT append `?plugin=...` anymore — that flag triggered an
