@@ -1,0 +1,12 @@
+{
+  "name": "Antigravity Bridge",
+  "description": "Markup-DSL editor + AI agent chat panel for live Penpot canvas rendering. Phase 1: empty shell that proves the postMessage bridge.",
+  "version": 2,
+  "host": "http://localhost:9010",
+  "code": "plugin.js",
+  "permissions": [
+    "content:read",
+    "content:write",
+    "library:read"
+  ]
+}

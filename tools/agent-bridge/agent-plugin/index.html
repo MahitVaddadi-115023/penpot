@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Antigravity Bridge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:#1e1e1e;color:#e8e8e8;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  font-size:13px;line-height:1.4;
+  overflow:hidden;
+}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid #b692f6;outline-offset:1px}
+
+/* ---- 3-pane grid: LEFT(50%) | RIGHT(50%); RIGHT is split top/bottom */
+.app{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr;
+  height:100vh;
+}
+.pane{
+  display:flex;flex-direction:column;
+  border-left:1px solid #2a2a2a;
+  min-width:0;min-height:0;
+}
+.pane:first-child{border-left:none}
+.pane-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 10px;background:#2a2a2a;
+  border-bottom:1px solid #1a1a1a;
+  font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#888;
+  flex:0 0 auto;
+}
+.pane-head .accent{color:#b692f6;font-weight:600}
+.pane-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;background:#1e1e1e}
+
+/* ---- LEFT: markup editor */
+.markup{display:flex;flex-direction:column;min-height:0}
+.markup-status{
+  display:flex;align-items:center;gap:8px;
+  padding:4px 10px;background:#252525;border-bottom:1px solid #1a1a1a;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:11px;color:#888;
+  flex:0 0 auto;
+}
+.markup-status .ok{color:#7cd97c}
+.markup-status .warn{color:#ffb86b}
+.markup-status .err{color:#ff6b6b}
+.markup-status .dot{margin:0 4px;color:#444}
+.markup-editor{
+  position:relative;flex:1 1 auto;min-height:0;display:flex;
+}
+.markup textarea{
+  flex:1 1 auto;width:100%;min-height:0;
+  background:#161616;color:#e8e8e8;border:none;
+  /* Left padding leaves room for the canvas-edit gutter (6px strip + 6px gap). */
+  padding:10px 12px 10px 18px;resize:none;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12px;line-height:1.5;tab-size:2;
+}
+.markup textarea::placeholder{color:#555}
+/* Canvas-edit attribution gutter (Phase 5 Gap 3).
+   A thin overlay pinned to the textarea's left edge; one dot per line edited
+   by the reverse path. Dots fade from #7c83ff to transparent over 3s via a
+   CSS animation, then JS removes them. pointer-events: none so it never
+   steals clicks/focus from the textarea. */
+.markup-gutter{
+  position:absolute;left:0;top:0;width:6px;height:100%;
+  pointer-events:none;overflow:hidden;
+}
+.markup-gutter .gdot{
+  position:absolute;left:1px;width:4px;height:4px;border-radius:50%;
+  background:#7c83ff;
+  animation:gutter-fade 3000ms linear forwards;
+}
+@keyframes gutter-fade{
+  0%   {opacity:1;     box-shadow:0 0 6px #7c83ff;}
+  60%  {opacity:.55;   box-shadow:0 0 3px #7c83ff;}
+  100% {opacity:0;     box-shadow:none;}
+}
+.errors-strip{
+  flex:0 0 auto;max-height:120px;overflow:auto;
+  border-top:1px solid #2a2a2a;background:#181414;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:11px;line-height:1.45;
+}
+.errors-strip .row{
+  display:flex;gap:8px;padding:3px 10px;
+  border-bottom:1px solid #221818;cursor:pointer;
+}
+.errors-strip .row:last-child{border-bottom:none}
+.errors-strip .row:hover{background:#221818}
+.errors-strip .sev{flex:0 0 60px;font-weight:600;text-transform:uppercase;font-size:10px}
+.errors-strip .sev.error{color:#ff6b6b}
+.errors-strip .sev.warning{color:#ffb86b}
+.errors-strip .path{flex:0 0 auto;color:#888}
+.errors-strip .msg{flex:1 1 auto;color:#ccc;word-break:break-word}
+.errors-strip .loc{flex:0 0 auto;color:#666;font-variant-numeric:tabular-nums}
+.errors-strip .empty{padding:6px 10px;color:#555;font-style:italic}
+
+/* ---- RIGHT split */
+.right{
+  display:grid;
+  grid-template-rows:60fr 40fr;
+  height:100%;min-height:0;
+}
+.right > .pane{border-left:none;border-top:1px solid #2a2a2a}
+.right > .pane:first-child{border-top:none}
+
+/* ── Phase 4 Agent Chat ── */
+.agent{display:flex;flex-direction:column;min-height:0}
+.agent-toolbar{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:4px 10px;background:#252525;border-bottom:1px solid #1a1a1a;
+  flex:0 0 auto;font-size:11px;
+}
+.agent-toolbar label{color:#888;text-transform:uppercase;letter-spacing:.04em;font-size:10px}
+.mode-toggle{display:inline-flex;background:#1e1e1e;border:1px solid #3a3a3a;border-radius:4px;overflow:hidden}
+.mode-toggle button{
+  background:transparent;color:#888;border:none;
+  padding:3px 8px;cursor:pointer;font-size:11px;line-height:1;
+}
+.mode-toggle button.active{background:#4a3a60;color:#d8c7ff}
+.mode-toggle button:hover:not(.active){color:#ccc;background:#2a2a2a}
+.agent-toolbar select{
+  background:#1e1e1e;color:#e8e8e8;border:1px solid #3a3a3a;border-radius:3px;
+  padding:2px 6px;font-size:11px;max-width:160px;
+}
+.agent-toolbar select:disabled{opacity:.5;cursor:not-allowed}
+.agent-toolbar .spacer{flex:1 1 auto}
+.agent-toolbar .clear-btn{
+  background:#3a3a3a;color:#fff;border:none;border-radius:3px;
+  padding:3px 8px;cursor:pointer;font-size:11px;
+}
+.agent-toolbar .clear-btn:hover{background:#555}
+.agent-banner{
+  display:none;flex:0 0 auto;
+  padding:6px 10px;background:#3a1f1f;color:#ffb4b4;
+  border-bottom:1px solid #1a1a1a;font-size:11px;
+  align-items:center;gap:8px;
+}
+.agent-banner.show{display:flex}
+.agent-banner .retry-btn{
+  background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:3px;
+  padding:2px 8px;cursor:pointer;font-size:11px;margin-left:auto;
+}
+.agent-banner .retry-btn:hover{background:#7a3a3a}
+.agent-log{
+  flex:1 1 auto;overflow:auto;padding:10px 12px;
+  display:flex;flex-direction:column;gap:8px;
+  background:#1e1e1e;min-height:0;
+}
+.agent-log .empty{color:#555;font-style:italic;text-align:center;padding:20px 10px}
+.msg{
+  display:flex;flex-direction:column;gap:4px;
+  max-width:88%;padding:8px 10px;border-radius:8px;
+  word-wrap:break-word;font-size:12.5px;line-height:1.45;
+}
+.msg .meta{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.04em}
+.msg .body{white-space:pre-wrap;word-break:break-word}
+.msg .body code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+  background:#161616;padding:1px 4px;border-radius:3px;
+}
+.msg.user{
+  background:#2c2640;align-self:flex-end;border:1px solid #3a2f54;
+}
+.msg.user .meta{color:#a08fd0}
+.msg.assistant{
+  background:#252525;align-self:flex-start;border:1px solid #333;
+}
+.msg.system{
+  background:#1a2230;align-self:center;border:1px solid #2a3a4a;
+  max-width:96%;font-size:11.5px;color:#9cb5d0;
+}
+.msg.error{
+  background:#3a1f1f;align-self:flex-start;border:1px solid #5a2a2a;color:#ffb4b4;
+}
+.msg.thinking{
+  background:#252525;align-self:flex-start;border:1px dashed #4a3a60;color:#a89bc4;
+}
+.msg.thinking .meta{color:#b692f6}
+.msg .steps{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.msg .step{
+  font-size:11px;padding:3px 6px;background:#1a1a1a;border-radius:3px;
+  display:flex;align-items:center;gap:6px;border:1px solid #2a2a2a;
+}
+.msg .step .num{color:#666;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.msg .step .desc{color:#bbb;flex:1 1 auto;word-break:break-word}
+.msg .step .status{flex:0 0 auto;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.msg .step .status.completed{color:#7cd97c}
+.msg .step .status.failed{color:#ff6b6b}
+.msg .step .status.skipped{color:#666}
+.msg .step .status.running{color:#7cd9e8}
+.msg .step .status.pending{color:#888}
+.tool-badge{
+  display:inline-flex;align-items:center;gap:3px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:10px;color:#d8c7ff;background:#2a2235;
+  border:1px solid #3a2f54;border-radius:10px;padding:1px 7px;
+  flex:0 0 auto;
+}
+.msg .artifacts{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.msg .artifact-btn{
+  display:flex;align-items:center;gap:6px;
+  background:#1a1a1a;border:1px solid #2a2a2a;border-radius:3px;
+  padding:4px 8px;cursor:pointer;color:#bbb;font-size:11px;
+  text-align:left;font-family:inherit;width:100%;
+}
+.msg .artifact-btn:hover{background:#2a2a2a;border-color:#3a3a3a;color:#e8e8e8}
+.msg .artifact-btn .type{
+  font-size:10px;color:#b692f6;text-transform:uppercase;
+  letter-spacing:.04em;flex:0 0 auto;
+}
+.msg .artifact-btn .title{flex:1 1 auto;color:#ccc;word-break:break-word;text-align:left}
+.agent-input-wrap{
+  display:flex;gap:6px;align-items:flex-end;
+  padding:8px 10px;background:#252525;border-top:1px solid #1a1a1a;
+  flex:0 0 auto;
+}
+.agent-input-wrap textarea{
+  flex:1 1 auto;min-height:36px;max-height:140px;
+  background:#161616;color:#e8e8e8;border:1px solid #2a2a2a;border-radius:4px;
+  padding:6px 8px;resize:vertical;
+  font-family:inherit;font-size:12.5px;line-height:1.4;
+}
+.agent-input-wrap textarea:disabled{opacity:.5;cursor:not-allowed}
+.agent-input-wrap .send-btn,.agent-input-wrap .stop-btn{
+  background:#4a3a60;color:#fff;border:none;border-radius:4px;
+  padding:6px 12px;cursor:pointer;font-size:12px;font-weight:600;
+  flex:0 0 auto;min-width:54px;height:36px;
+}
+.agent-input-wrap .send-btn:hover:not(:disabled){background:#5a4a7a}
+.agent-input-wrap .send-btn:disabled{opacity:.4;cursor:not-allowed}
+.agent-input-wrap .stop-btn{background:#5a2a2a}
+.agent-input-wrap .stop-btn:hover:not(:disabled){background:#7a3a3a}
+.agent-input-wrap .stop-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* Artifact modal — adapted from portfolio-sync live-preview-plugin */
+.agent-modal-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);
+  display:none;align-items:center;justify-content:center;z-index:1000;
+}
+.agent-modal-bg.show{display:flex}
+.agent-modal{
+  background:#252525;border:1px solid #3a3a3a;border-radius:8px;
+  width:min(720px,92vw);max-height:80vh;display:flex;flex-direction:column;
+  box-shadow:0 24px 64px rgba(0,0,0,.6);
+}
+.agent-modal-h{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;border-bottom:1px solid #3a3a3a;
+}
+.agent-modal-h h3{font-size:13px;font-weight:600;color:#fff;display:flex;align-items:center;gap:8px}
+.agent-modal-h h3 .dot{width:8px;height:8px;border-radius:50%;background:#b692f6;display:inline-block}
+.agent-modal-meta{color:#888;font-size:11px}
+.agent-modal-body{padding:0;overflow:auto;flex:1;min-height:80px}
+.agent-modal-body pre{
+  margin:0;padding:12px 14px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:11.5px;line-height:1.5;color:#e8e8e8;
+  white-space:pre-wrap;word-break:break-word;
+}
+.agent-modal-foot{
+  display:flex;justify-content:flex-end;gap:8px;
+  padding:8px 14px;border-top:1px solid #3a3a3a;
+}
+.agent-modal-foot button{
+  background:#3a3a3a;color:#fff;border:none;
+  padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;
+}
+.agent-modal-foot button:hover{background:#555}
+
+/* Status pane */
+.status-tabs{
+  display:flex;gap:0;background:#252525;border-bottom:1px solid #1a1a1a;
+  flex:0 0 auto;
+}
+.status-tabs button{
+  background:transparent;color:#888;border:none;
+  padding:6px 14px;cursor:pointer;font-size:11px;
+  text-transform:uppercase;letter-spacing:.04em;
+  border-bottom:2px solid transparent;
+}
+.status-tabs button:hover{color:#ccc}
+.status-tabs button.active{color:#b692f6;border-bottom-color:#b692f6}
+.status-toolbar{
+  display:flex;align-items:center;gap:8px;
+  padding:4px 10px;background:#252525;border-bottom:1px solid #1a1a1a;
+  flex:0 0 auto;
+}
+.status-toolbar button{
+  background:#3a3a3a;color:#fff;border:none;
+  padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px;
+}
+.status-toolbar button:hover{background:#555}
+.status-meta{margin-left:auto;color:#666;font-size:11px;font-variant-numeric:tabular-nums}
+.status-log,.mutations-log{
+  flex:1 1 auto;overflow:auto;
+  padding:6px 10px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:11px;line-height:1.5;
+  background:#161616;
+}
+.status-log .row,.mutations-log .row{
+  display:flex;gap:8px;padding:1px 0;border-bottom:1px solid #1f1f1f;
+}
+.status-log .row:last-child,.mutations-log .row:last-child{border-bottom:none}
+.status-log .ts,.mutations-log .ts{color:#555;flex:0 0 auto;font-variant-numeric:tabular-nums}
+.status-log .ty,.mutations-log .op{flex:0 0 auto;font-weight:600}
+.status-log .pl,.mutations-log .pl{color:#bbb;word-break:break-all;white-space:pre-wrap;flex:1 1 auto}
+.status-log .row.in   .ty{color:#7cd9e8}
+.status-log .row.out  .ty{color:#b692f6}
+.status-log .row.ack  .ty{color:#7cd97c}
+.status-log .row.warn .ty{color:#ffb86b}
+.status-log .row.err  .ty{color:#ff6b6b}
+.status-log .row.sys  .ty{color:#888}
+.mutations-log .row.create .op{color:#7cd97c}
+.mutations-log .row.update .op{color:#7cd9e8}
+.mutations-log .row.delete .op{color:#ff6b6b}
+.mutations-log .row.reparent .op{color:#ffb86b}
+.mutations-log .id{color:#d8c7ff;flex:0 0 auto}
+.mutations-log .fields{color:#888;flex:1 1 auto}
+.hidden{display:none !important}
+.sr-only{position:absolute;left:-9999px}
+
+/* ---- Tool-proxy indicator (lives in the status toolbar) */
+.proxy{
+  display:inline-flex;align-items:center;gap:6px;
+  margin-left:6px;padding:2px 6px;
+  border-radius:10px;background:#1a1a1a;border:1px solid #2a2a2a;
+  font-size:11px;color:#888;
+}
+.proxy .pdot{
+  width:7px;height:7px;border-radius:50%;
+  background:#555;display:inline-block;
+  box-shadow:0 0 0 2px rgba(0,0,0,.4) inset;
+}
+.proxy.connected   .pdot{background:#7cd97c}
+.proxy.connected   .plabel{color:#7cd97c}
+.proxy.disconnected .pdot{background:#ff6b6b}
+.proxy.disconnected .plabel{color:#ff6b6b}
+.proxy.reconnecting .pdot{background:#ffb86b}
+.proxy.reconnecting .plabel{color:#ffb86b}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- LEFT pane: Markup -->
+  <section class="pane markup" aria-labelledby="markup-title">
+    <header class="pane-head">
+      <span><span class="accent">Markup</span> &middot; DSL editor</span>
+      <span style="color:#555">Phase 2</span>
+    </header>
+    <div class="markup-status" id="markup-status">
+      <span id="ms-state" class="ok">ready</span>
+      <span class="dot">&middot;</span>
+      <span id="ms-detail">type to compile</span>
+    </div>
+    <label for="markup-area" class="sr-only" id="markup-title">Markup DSL editor</label>
+    <div class="markup-editor">
+      <textarea id="markup-area" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+                placeholder="\page home&#10;\board hero (0, 0, 1440, 800) fill=#FAFAFA"
+>\page home
+\board hero (0, 0, 1440, 800) fill=#FAFAFA {
+  \text title (40, 40) fill=#111 { Hello Penpot }
+  \rect cta (100, 200, 200, 56) fill=#111 radius=8
+}
+</textarea>
+      <div class="markup-gutter" id="markup-gutter" aria-hidden="true"></div>
+    </div>
+    <div class="errors-strip" id="errors-strip" aria-label="Validation errors">
+      <div class="empty">No errors.</div>
+    </div>
+  </section>
+
+  <!-- RIGHT split: Agent (top, collapsed) + Status/Mutations (bottom) -->
+  <section class="pane right" aria-label="Agent and status">
+    <div class="pane agent" aria-labelledby="agent-title">
+      <header class="pane-head">
+        <span id="agent-title"><span class="accent">Agent</span> &middot; chat</span>
+        <span style="color:#555">Phase 4 &middot; newcore :3777</span>
+      </header>
+      <div class="agent-toolbar" aria-label="Agent controls">
+        <div class="mode-toggle" role="tablist" aria-label="Conversation mode">
+          <button id="mode-chat"  type="button" class="active" role="tab" aria-selected="true"
+                  title="Single-turn LLM call via /chat. Fast and cheap; no tools.">Chat</button>
+          <button id="mode-agent" type="button" role="tab" aria-selected="false"
+                  title="Spawn a tool-using agent via /agents. Async with polling.">Agent</button>
+        </div>
+        <label for="agent-model">Model</label>
+        <select id="agent-model" aria-label="Model selection" disabled>
+          <option value="">(loading…)</option>
+        </select>
+        <span class="spacer"></span>
+        <button id="agent-clear" type="button" class="clear-btn"
+                title="Clear conversation history (also clears localStorage)">Clear</button>
+      </div>
+      <div class="agent-banner" id="agent-banner" role="status">
+        <span id="agent-banner-text">newcore offline — chat disabled.</span>
+        <button id="agent-retry" type="button" class="retry-btn"
+                title="Retry GET http://localhost:3777/health">Retry</button>
+      </div>
+      <div class="agent-log" id="agent-log" role="log" aria-live="polite" aria-label="Agent conversation">
+        <div class="empty">No messages yet. Type a prompt below to start chatting with newcore.</div>
+      </div>
+      <div class="agent-input-wrap">
+        <label for="agent-input" class="sr-only">Message</label>
+        <textarea id="agent-input" rows="2"
+                  placeholder="Ask the agent… (Cmd+Enter to send)"
+                  autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+        <button id="agent-send" type="button" class="send-btn"
+                aria-label="Send message" title="Send (Cmd+Enter)">Send</button>
+        <button id="agent-stop" type="button" class="stop-btn hidden"
+                aria-label="Stop in-flight request">Stop</button>
+      </div>
+    </div>
+
+    <div class="pane status" aria-labelledby="status-title">
+      <header class="pane-head">
+        <span id="status-title"><span class="accent">Bridge</span></span>
+        <span class="status-meta" id="status-meta">0 events</span>
+      </header>
+      <div class="status-tabs" role="tablist">
+        <button id="tab-status" type="button" class="active" role="tab" aria-selected="true">Status</button>
+        <button id="tab-mutations" type="button" role="tab" aria-selected="false">Mutations</button>
+      </div>
+      <div class="status-toolbar">
+        <button id="btn-ping" type="button" title="Send a test message to the sandbox">Ping sandbox</button>
+        <button id="btn-clear" type="button" title="Clear the active log">Clear</button>
+        <span class="status-meta">theme=<span id="status-theme">?</span></span>
+        <span class="proxy disconnected" id="proxy-indicator" title="Tool proxy WebSocket status">
+          <span class="pdot"></span>
+          <span>Tool proxy:</span>
+          <span class="plabel" id="proxy-label">disconnected</span>
+        </span>
+      </div>
+      <div class="pane-body">
+        <div class="status-log" id="status-log" role="log" aria-live="polite" aria-label="Bridge event log"></div>
+        <div class="mutations-log hidden" id="mutations-log" aria-label="Recent mutations"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Phase 4 Agent — artifact viewer modal -->
+<div class="agent-modal-bg" id="agent-modal-bg" hidden>
+  <div class="agent-modal" role="dialog" aria-modal="true" aria-labelledby="agent-modal-title">
+    <div class="agent-modal-h">
+      <h3 id="agent-modal-title"><span class="dot" aria-hidden="true"></span><span id="agent-modal-title-text">Artifact</span></h3>
+      <span class="agent-modal-meta" id="agent-modal-meta"></span>
+    </div>
+    <div class="agent-modal-body" id="agent-modal-body">
+      <pre id="agent-modal-content">(empty)</pre>
+    </div>
+    <div class="agent-modal-foot">
+      <button type="button" id="agent-modal-close" aria-label="Close artifact viewer">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+'use strict';
+
+import { parse, validate, compile, decompile, format } from './compiler.mjs';
+
+// ---- theme query param --------------------------------------------------
+const params = new URLSearchParams(location.search);
+const theme = params.get('theme') || 'dark';
+document.getElementById('status-theme').textContent = theme;
+
+// ---- status log + mutations log ----------------------------------------
+const logEl = document.getElementById('status-log');
+const mutEl = document.getElementById('mutations-log');
+const metaEl = document.getElementById('status-meta');
+let eventCount = 0;
+let mutationCount = 0;
+const MUTATIONS_MAX = 50;
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function nowStr() {
+  const d = new Date();
+  return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+}
+function trunc(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+
+function append(kind, type, payload) {
+  const row = document.createElement('div');
+  row.className = 'row ' + (kind || 'sys');
+  const ts = document.createElement('span'); ts.className = 'ts'; ts.textContent = nowStr();
+  const ty = document.createElement('span'); ty.className = 'ty'; ty.textContent = type;
+  const pl = document.createElement('span'); pl.className = 'pl';
+  let s;
+  try { s = (payload === undefined) ? '' : JSON.stringify(payload); }
+  catch { s = String(payload); }
+  pl.textContent = trunc(s, 200);
+  row.appendChild(ts); row.appendChild(ty); row.appendChild(pl);
+  logEl.appendChild(row);
+  const nearBottom = (logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight) < 40;
+  if (nearBottom) logEl.scrollTop = logEl.scrollHeight;
+  eventCount += 1;
+  if (currentTab === 'status') {
+    metaEl.textContent = eventCount + ' event' + (eventCount === 1 ? '' : 's');
+  }
+}
+
+function appendMutation(m) {
+  const row = document.createElement('div');
+  row.className = 'row ' + (m.op || 'sys');
+  const ts = document.createElement('span'); ts.className = 'ts'; ts.textContent = nowStr();
+  const op = document.createElement('span'); op.className = 'op'; op.textContent = '[' + m.op + ']';
+  const id = document.createElement('span'); id.className = 'id'; id.textContent = m.shapeId || '—';
+  const fields = document.createElement('span'); fields.className = 'fields';
+  let detail = '';
+  if (m.op === 'create') detail = (m.shapeType || '') + ' ' + Object.keys(m.fields || {}).join(',');
+  else if (m.op === 'update') detail = Object.keys(m.fields || {}).join(',');
+  else if (m.op === 'reparent') detail = '→ ' + (m.parent || '<root>');
+  else if (m.op === 'delete') detail = '';
+  fields.textContent = trunc(detail, 160);
+  row.appendChild(ts); row.appendChild(op); row.appendChild(id); row.appendChild(fields);
+  mutEl.appendChild(row);
+  // Trim to MUTATIONS_MAX
+  while (mutEl.children.length > MUTATIONS_MAX) mutEl.removeChild(mutEl.firstChild);
+  const nearBottom = (mutEl.scrollHeight - mutEl.scrollTop - mutEl.clientHeight) < 40;
+  if (nearBottom) mutEl.scrollTop = mutEl.scrollHeight;
+  mutationCount += 1;
+  if (currentTab === 'mutations') {
+    metaEl.textContent = mutationCount + ' mutation' + (mutationCount === 1 ? '' : 's');
+  }
+}
+
+// ---- tab switching ------------------------------------------------------
+let currentTab = 'status';
+function setTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-status').classList.toggle('active', tab === 'status');
+  document.getElementById('tab-mutations').classList.toggle('active', tab === 'mutations');
+  document.getElementById('tab-status').setAttribute('aria-selected', tab === 'status');
+  document.getElementById('tab-mutations').setAttribute('aria-selected', tab === 'mutations');
+  logEl.classList.toggle('hidden', tab !== 'status');
+  mutEl.classList.toggle('hidden', tab !== 'mutations');
+  if (tab === 'status') {
+    metaEl.textContent = eventCount + ' event' + (eventCount === 1 ? '' : 's');
+  } else {
+    metaEl.textContent = mutationCount + ' mutation' + (mutationCount === 1 ? '' : 's');
+  }
+}
+document.getElementById('tab-status').addEventListener('click', () => setTab('status'));
+document.getElementById('tab-mutations').addEventListener('click', () => setTab('mutations'));
+
+// ---- bridge: sandbox -> iframe -----------------------------------------
+window.addEventListener('message', (ev) => {
+  const d = ev.data;
+  if (!d || typeof d !== 'object' || typeof d.type !== 'string') return;
+  // canvasState is the reverse-path snapshot; keep it out of the status log spam.
+  if (d.type === 'canvasState') {
+    onCanvasState(d.content);
+    return;
+  }
+  if (d.type === 'applied') {
+    onApplied(d.content);
+    return;
+  }
+  // Tool channel: sandbox emits tool.result directly when it has handled a
+  // tool call (penpot.list_shapes / penpot.mutate_shape). Forward to WS.
+  if (d.type === 'tool.result') {
+    onSandboxToolResult(d);
+    return;
+  }
+  // Sandbox-initiated forwards for tools the sandbox can't fulfill on its own
+  // (markup lives in the iframe). The sandbox responded "deferred" to the
+  // original tool call; the actual canvas update happens via the compile
+  // pipeline below. We still owe a tool.result with this id back over WS,
+  // which onSetMarkupTool / onPatchMarkupTool produces.
+  if (d.type === 'set_markup' && typeof d.id === 'string') {
+    onSetMarkupTool(d.id, d.content);
+    return;
+  }
+  if (d.type === 'patch_markup' && typeof d.id === 'string') {
+    onPatchMarkupTool(d.id, d.content);
+    return;
+  }
+  const kind = (d.type === 'ack') ? 'ack' : 'in';
+  append(kind, d.type, d.content);
+  if (d.type === 'theme' && (d.content === 'light' || d.content === 'dark')) {
+    document.getElementById('status-theme').textContent = d.content;
+  }
+});
+
+// ---- bridge: iframe -> sandbox -----------------------------------------
+function sendToSandbox(type, content) {
+  const msg = { type: type, content: content };
+  try { window.parent.postMessage(msg, '*'); } catch (e) {
+    append('err', 'post-fail', e && e.message);
+    return;
+  }
+  append('out', type, content);
+}
+
+sendToSandbox('hello', 'bridge-ready');
+append('sys', 'iframe-loaded', { theme: theme, ua: navigator.userAgent.slice(0, 80) });
+
+// ---- toolbar buttons ----------------------------------------------------
+document.getElementById('btn-ping').addEventListener('click', () => {
+  sendToSandbox('ping', { t: Date.now() });
+});
+document.getElementById('btn-clear').addEventListener('click', () => {
+  if (currentTab === 'status') {
+    logEl.textContent = '';
+    eventCount = 0;
+    metaEl.textContent = '0 events';
+  } else {
+    mutEl.textContent = '';
+    mutationCount = 0;
+    metaEl.textContent = '0 mutations';
+  }
+});
+
+// ---- markup textarea behavior ------------------------------------------
+const ta = document.getElementById('markup-area');
+const errorsEl = document.getElementById('errors-strip');
+const msState = document.getElementById('ms-state');
+const msDetail = document.getElementById('ms-detail');
+
+// Tab key inserts 2 spaces (don't blur).
+ta.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    const before = ta.value.slice(0, start);
+    const after = ta.value.slice(end);
+    ta.value = before + '  ' + after;
+    ta.selectionStart = ta.selectionEnd = start + 2;
+    // Manually re-trigger input pipeline.
+    onMarkupInput();
+  } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+    e.preventDefault();
+  }
+});
+
+// ---- auto-compile loop --------------------------------------------------
+let lastKnownCanvasState = { page: 'page', shapes: [], bindings: [] };
+let applyingFromMarkup = false;
+let applyingClearTimer = null;
+let debounceTimer = null;
+
+// ---- canvas-edit attribution (Phase 5 Gap 3) ---------------------------
+// `lastTextareaValue` is the snapshot we last reconciled against. The reverse
+// path diffs the new textarea content against it; differing line indices get
+// a gutter dot that fades over 3s. Forward edits (user typing) bypass this —
+// they only update `lastTextareaValue` so the next reverse diff is correct.
+let lastTextareaValue = ta.value;
+const gutterEl = document.getElementById('markup-gutter');
+// active attribution markers: line index -> {el, timer}
+const attributionMarkers = new Map();
+const ATTRIBUTION_TTL_MS = 3000;
+
+function clearAttribution(line) {
+  const m = attributionMarkers.get(line);
+  if (!m) return;
+  if (m.timer) clearTimeout(m.timer);
+  if (m.el && m.el.parentNode) m.el.parentNode.removeChild(m.el);
+  attributionMarkers.delete(line);
+}
+
+function clearAllAttribution() {
+  for (const line of Array.from(attributionMarkers.keys())) clearAttribution(line);
+}
+
+// Compute the line height in CSS px from the textarea's computed style.
+// Falls back to 18 (12px * 1.5) when unitless / 'normal'.
+function textareaLineHeight() {
+  const cs = window.getComputedStyle(ta);
+  const lh = parseFloat(cs.lineHeight);
+  if (isFinite(lh) && lh > 0) return lh;
+  const fs = parseFloat(cs.fontSize) || 12;
+  return fs * 1.5;
+}
+
+function topPaddingPx() {
+  const cs = window.getComputedStyle(ta);
+  return parseFloat(cs.paddingTop) || 0;
+}
+
+// Place a gutter dot for `lineIdx` (0-based) at the current scroll position.
+function positionDot(el, lineIdx) {
+  const lh = textareaLineHeight();
+  const pad = topPaddingPx();
+  // Center the dot on the line's mid-line.
+  const y = pad + lineIdx * lh - ta.scrollTop + (lh / 2) - 2;
+  el.style.top = y + 'px';
+  // Hide dots that scroll outside the textarea so they don't bleed over
+  // status / errors strips.
+  el.style.visibility = (y < -4 || y > ta.clientHeight + 4) ? 'hidden' : 'visible';
+}
+
+function repositionAllDots() {
+  for (const [lineIdx, m] of attributionMarkers) positionDot(m.el, lineIdx);
+}
+
+function addAttributionDot(lineIdx) {
+  // Replace any existing marker for this line so the fade restarts.
+  clearAttribution(lineIdx);
+  const el = document.createElement('div');
+  el.className = 'gdot';
+  gutterEl.appendChild(el);
+  positionDot(el, lineIdx);
+  const timer = setTimeout(() => clearAttribution(lineIdx), ATTRIBUTION_TTL_MS);
+  attributionMarkers.set(lineIdx, { el, timer });
+}
+
+// Reverse-edit attribution: mark every line index in `newText` that differs
+// from `oldText`. v1 uses plain compare-by-index (no LCS): if the user has
+// only forward-edited since the last canvas snapshot, this is exact; if
+// markup lines were inserted/removed (rare during a 2s window) the markers
+// won't perfectly track but the fade hides any drift quickly.
+function markCanvasEditedLines(oldText, newText) {
+  const a = oldText.split('\n');
+  const b = newText.split('\n');
+  const n = Math.max(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    if (a[i] !== b[i]) addAttributionDot(i);
+  }
+}
+
+// Reposition dots on textarea scroll / resize so they track their lines.
+ta.addEventListener('scroll', repositionAllDots, { passive: true });
+window.addEventListener('resize', repositionAllDots);
+
+function onMarkupInput() {
+  // Forward edit — clear all attribution (the markup pane is now the source
+  // of truth) and refresh the diff baseline.
+  if (attributionMarkers.size) clearAllAttribution();
+  lastTextareaValue = ta.value;
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(runCompilePipeline, 300);
+}
+ta.addEventListener('input', onMarkupInput);
+
+function setStatus(state, detail) {
+  msState.className = state; // ok | warn | err
+  msState.textContent =
+    state === 'ok' ? 'compile: ok' :
+    state === 'warn' ? 'compile: warn' :
+    state === 'err' ? 'compile: error' : state;
+  msDetail.textContent = detail || '';
+}
+
+function renderErrors(errs) {
+  errorsEl.innerHTML = '';
+  if (!errs || !errs.length) {
+    const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No errors.';
+    errorsEl.appendChild(e);
+    return;
+  }
+  for (const er of errs) {
+    const sev = (er.code === 'unsupported_in_v1' || (er.code && er.code.startsWith && er.code.startsWith('parse_'))) ? 'error'
+              : (er.severity === 'warning' ? 'warning' : 'error');
+    const row = document.createElement('div'); row.className = 'row';
+    const s = document.createElement('span'); s.className = 'sev ' + sev; s.textContent = sev;
+    const p = document.createElement('span'); p.className = 'path'; p.textContent = er.path || '—';
+    const m = document.createElement('span'); m.className = 'msg'; m.textContent = (er.code ? '[' + er.code + '] ' : '') + (er.message || '');
+    const loc = document.createElement('span'); loc.className = 'loc';
+    if (er.line != null) loc.textContent = er.line + ':' + (er.col || 0);
+    row.appendChild(s); row.appendChild(p); row.appendChild(m); row.appendChild(loc);
+    row.addEventListener('click', () => focusError(er));
+    errorsEl.appendChild(row);
+  }
+}
+
+function focusError(er) {
+  ta.focus();
+  if (er.line != null) {
+    // Compute char offset from line:col (1-based line, 0-based col).
+    const lines = ta.value.split('\n');
+    const lineIdx = Math.max(0, Math.min(lines.length - 1, er.line - 1));
+    let offset = 0;
+    for (let i = 0; i < lineIdx; i++) offset += lines[i].length + 1;
+    offset += (er.col || 0);
+    offset = Math.min(offset, ta.value.length);
+    ta.setSelectionRange(offset, offset);
+  }
+}
+
+function runCompilePipeline() {
+  const text = ta.value;
+  let parsed;
+  try {
+    parsed = parse(text);
+  } catch (e) {
+    setStatus('err', 'parse threw: ' + (e && e.message));
+    renderErrors([{ path: '—', code: 'parse_throw', message: String(e && e.message || e) }]);
+    return;
+  }
+  const { ir, errors: parseErrs } = parsed;
+  if (!ir) {
+    setStatus('err', (parseErrs && parseErrs.length ? parseErrs.length : 0) + ' parse error' + (parseErrs && parseErrs.length === 1 ? '' : 's'));
+    renderErrors(parseErrs || []);
+    return;
+  }
+  let valErrs = [];
+  try { valErrs = validate(ir) || []; }
+  catch (e) {
+    setStatus('err', 'validate threw');
+    renderErrors([{ path: '—', code: 'validate_throw', message: String(e && e.message || e) }]);
+    return;
+  }
+  // Blocking errors: unsupported_in_v1 + anything not flagged warning.
+  const blocking = valErrs.filter(e => e.code === 'unsupported_in_v1' || e.severity !== 'warning');
+  const allErrs = (parseErrs || []).concat(valErrs);
+  if (blocking.length) {
+    setStatus('err', blocking.length + ' validation error' + (blocking.length === 1 ? '' : 's'));
+    renderErrors(allErrs);
+    return;
+  }
+
+  let out;
+  try {
+    out = compile(ir, lastKnownCanvasState);
+  } catch (e) {
+    setStatus('err', 'compile threw: ' + (e && e.message));
+    renderErrors(allErrs.concat([{ path: '—', code: 'compile_throw', message: String(e && e.message || e) }]));
+    return;
+  }
+  const { mutations, skipped } = out;
+  renderErrors(allErrs);
+  const detailBits = [mutations.length + ' mutation' + (mutations.length === 1 ? '' : 's')];
+  if (skipped && skipped.length) detailBits.push('skipped ' + skipped.length);
+  setStatus(allErrs.length ? 'warn' : 'ok', detailBits.join(' · '));
+  // Log them into Mutations tab.
+  for (const m of mutations) appendMutation(m);
+
+  if (mutations.length) {
+    applyingFromMarkup = true;
+    if (applyingClearTimer) clearTimeout(applyingClearTimer);
+    applyingClearTimer = setTimeout(() => { applyingFromMarkup = false; }, 250);
+    sendToSandbox('apply', { mutations, page: ir.page });
+  }
+}
+
+// ---- reverse path -------------------------------------------------------
+function onCanvasState(state) {
+  if (!state || typeof state !== 'object') return;
+  lastKnownCanvasState = state;
+  if (applyingFromMarkup) return;
+  let ir, text;
+  try { ir = decompile(state); text = format(ir); }
+  catch (e) {
+    append('err', 'decompile-fail', e && e.message);
+    return;
+  }
+  if (text === ta.value) return;
+  // Preserve cursor best-effort.
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const previousValue = lastTextareaValue;
+  ta.value = text;
+  try { ta.setSelectionRange(Math.min(start, text.length), Math.min(end, text.length)); } catch {}
+  // Attribution: mark the lines that changed because of this canvas snapshot.
+  // Use a microtask delay so layout has settled before we measure scroll/line-height.
+  lastTextareaValue = text;
+  try { markCanvasEditedLines(previousValue, text); } catch {}
+  // Re-render errors based on the new content (without re-emitting an apply).
+  try {
+    const { ir: ir2, errors: pe } = parse(text);
+    const ve = ir2 ? (validate(ir2) || []) : [];
+    renderErrors((pe || []).concat(ve));
+    setStatus('ok', 'synced from canvas');
+  } catch {}
+}
+
+function onApplied(content) {
+  if (!content) return;
+  const ok = content.ok || 0;
+  const failed = content.failed || [];
+  append(failed.length ? 'warn' : 'sys', 'applied', { ok, failed: failed.length });
+  if (failed.length) {
+    // Surface failures as transient warnings in the errors strip too.
+    const extra = failed.map(f => ({ path: 'shape:' + f.shapeId, code: 'apply_failed', message: f.error || 'unknown' }));
+    // Merge with existing — but keep simple: re-render with just these.
+    renderErrors(extra);
+  }
+}
+
+// Kick off an initial compile so the user sees the example produce mutations.
+runCompilePipeline();
+
+// ---- tool proxy --------------------------------------------------------
+//
+// We open a WebSocket to dev-server.mjs (:9010/ws). The server is the proxy
+// between newcore (HTTP POST /tool) and this iframe. Wire protocol:
+//
+//   server → client:  {type:"tool",        id, name, input}
+//   client → server:  {type:"tool.result", id, ok, result?|error?}
+//
+// Tool dispatch is delegated to the sandbox (plugin.js) via postMessage:
+//   - For sandbox-native tools (penpot.list_shapes, penpot.mutate_shape),
+//     the sandbox replies with {type:"tool.result", id, ...} which our
+//     existing message handler forwards over WS via onSandboxToolResult.
+//   - For markup tools (penpot.set_markup, penpot.patch_markup), the
+//     sandbox immediately forwards back to the iframe via
+//     {type:"set_markup"|"patch_markup", id, content}; we update the
+//     textarea, trigger compile, and emit tool.result ourselves.
+
+let ws = null;
+let wsState = 'disconnected';
+let wsReconnectDelay = 500;
+const WS_RECONNECT_CAP = 5000;
+const proxyEl = document.getElementById('proxy-indicator');
+const proxyLabelEl = document.getElementById('proxy-label');
+
+function setProxyState(state, label) {
+  wsState = state;
+  proxyEl.classList.remove('connected', 'disconnected', 'reconnecting');
+  proxyEl.classList.add(state);
+  proxyLabelEl.textContent = label || state;
+}
+
+function wsSend(obj) {
+  if (!ws || ws.readyState !== 1) return false;
+  try { ws.send(JSON.stringify(obj)); return true; }
+  catch (e) { append('err', 'ws-send-fail', e && e.message); return false; }
+}
+
+function onSandboxToolResult(d) {
+  // d: {type:"tool.result", id, ok, result?|error?}
+  const name = d.name || (pendingToolNames.get(d.id) || '?');
+  pendingToolNames.delete(d.id);
+  append(d.ok ? 'sys' : 'err', '[tool] ' + name,
+         d.ok ? '→ ok' : ('→ error: ' + (d.error || 'unknown')));
+  wsSend({ type: 'tool.result', id: d.id, ok: !!d.ok, result: d.result, error: d.error });
+}
+
+// Track pending tool names by id so we can label log entries correctly when
+// the sandbox replies (sandbox echoes id but not always name).
+const pendingToolNames = new Map();
+
+function onSetMarkupTool(id, content) {
+  try {
+    ta.value = String(content || '');
+    // Agent-driven forward edit — clear attribution and resync baseline.
+    if (attributionMarkers.size) clearAllAttribution();
+    lastTextareaValue = ta.value;
+    applyingFromMarkup = true;
+    if (applyingClearTimer) clearTimeout(applyingClearTimer);
+    applyingClearTimer = setTimeout(() => { applyingFromMarkup = false; }, 250);
+    runCompilePipeline();
+    append('sys', '[tool] penpot.set_markup', '→ ok');
+    wsSend({ type: 'tool.result', id, ok: true, result: { applied: true, length: ta.value.length } });
+  } catch (e) {
+    append('err', '[tool] penpot.set_markup', '→ error: ' + (e && e.message));
+    wsSend({ type: 'tool.result', id, ok: false, error: e && e.message });
+  } finally {
+    pendingToolNames.delete(id);
+  }
+}
+
+function onPatchMarkupTool(id, patch) {
+  try {
+    const original = ta.value;
+    const next = applyUnifiedDiff(original, String(patch || ''));
+    if (next == null) {
+      append('err', '[tool] penpot.patch_markup', '→ error: patch did not apply');
+      wsSend({ type: 'tool.result', id, ok: false, error: 'patch_apply_failed' });
+      return;
+    }
+    ta.value = next;
+    if (attributionMarkers.size) clearAllAttribution();
+    lastTextareaValue = ta.value;
+    applyingFromMarkup = true;
+    if (applyingClearTimer) clearTimeout(applyingClearTimer);
+    applyingClearTimer = setTimeout(() => { applyingFromMarkup = false; }, 250);
+    runCompilePipeline();
+    append('sys', '[tool] penpot.patch_markup', '→ ok');
+    wsSend({ type: 'tool.result', id, ok: true, result: { applied: true, length: ta.value.length } });
+  } catch (e) {
+    append('err', '[tool] penpot.patch_markup', '→ error: ' + (e && e.message));
+    wsSend({ type: 'tool.result', id, ok: false, error: e && e.message });
+  } finally {
+    pendingToolNames.delete(id);
+  }
+}
+
+// Minimal unified-diff applier. Supports the standard "@@ -l,s +l,s @@"
+// hunk header with " ", "-", "+" line prefixes. Apply-or-fail: if any
+// context/removal line doesn't match, return null. No fuzz. No multi-file.
+// Adequate for v1; sub-agent G can swap for a stronger applier later.
+function applyUnifiedDiff(text, patch) {
+  if (!patch) return text;
+  const lines = text.split('\n');
+  const patchLines = patch.split('\n');
+  const out = [];
+  let cursor = 0; // 0-based index into `lines`
+  let i = 0;
+  // Skip file headers (---/+++) if present.
+  while (i < patchLines.length && (patchLines[i].startsWith('--- ') || patchLines[i].startsWith('+++ '))) i++;
+  while (i < patchLines.length) {
+    const header = patchLines[i++];
+    if (!header) continue;
+    if (!header.startsWith('@@')) {
+      // Stray line outside a hunk — bail.
+      return null;
+    }
+    const m = header.match(/^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/);
+    if (!m) return null;
+    const oldStart = Number(m[1]); // 1-based; 0 means empty file
+    // Copy unchanged lines up to the hunk start.
+    const hunkAt = Math.max(0, oldStart - 1);
+    while (cursor < hunkAt) {
+      if (cursor >= lines.length) return null;
+      out.push(lines[cursor++]);
+    }
+    // Apply hunk body until next @@ or EOF.
+    while (i < patchLines.length && !patchLines[i].startsWith('@@')) {
+      const pl = patchLines[i++];
+      if (pl === '' && i >= patchLines.length) break; // trailing newline
+      const tag = pl.length ? pl[0] : ' ';
+      const body = pl.length ? pl.slice(1) : '';
+      if (tag === ' ') {
+        if (cursor >= lines.length || lines[cursor] !== body) return null;
+        out.push(lines[cursor++]);
+      } else if (tag === '-') {
+        if (cursor >= lines.length || lines[cursor] !== body) return null;
+        cursor++;
+      } else if (tag === '+') {
+        out.push(body);
+      } else if (tag === '\\') {
+        // "\ No newline at end of file" — ignore.
+      } else {
+        // Unrecognised line tag → fail loudly.
+        return null;
+      }
+    }
+  }
+  // Copy trailing unchanged lines.
+  while (cursor < lines.length) out.push(lines[cursor++]);
+  return out.join('\n');
+}
+
+function openWS() {
+  setProxyState('reconnecting', 'reconnecting');
+  try {
+    ws = new WebSocket('ws://' + location.host + '/ws');
+  } catch (e) {
+    append('err', 'ws-open-fail', e && e.message);
+    scheduleReconnect();
+    return;
+  }
+  ws.addEventListener('open', () => {
+    wsReconnectDelay = 500;
+    setProxyState('connected', 'connected');
+    append('sys', 'ws-open', { url: ws.url });
+  });
+  ws.addEventListener('close', (ev) => {
+    setProxyState('disconnected', 'disconnected');
+    append('warn', 'ws-close', { code: ev.code, reason: ev.reason || '' });
+    scheduleReconnect();
+  });
+  ws.addEventListener('error', () => {
+    // 'close' will fire too; just log.
+    append('err', 'ws-error', null);
+  });
+  ws.addEventListener('message', (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); }
+    catch { append('err', 'ws-bad-json', null); return; }
+    if (!msg || msg.type !== 'tool' || typeof msg.id !== 'string' || typeof msg.name !== 'string') {
+      append('err', 'ws-bad-msg', msg && msg.type);
+      return;
+    }
+    // Route to sandbox. Sandbox replies via window.parent.postMessage with
+    // {type:"tool.result", id, ...} OR forwards markup tools back here via
+    // {type:"set_markup"|"patch_markup", id, content}.
+    pendingToolNames.set(msg.id, msg.name);
+    try {
+      window.parent.postMessage({ type: 'tool', id: msg.id, name: msg.name, input: msg.input }, '*');
+    } catch (e) {
+      append('err', '[tool] ' + msg.name, '→ error: post-fail: ' + (e && e.message));
+      wsSend({ type: 'tool.result', id: msg.id, ok: false, error: 'iframe_post_failed' });
+      pendingToolNames.delete(msg.id);
+    }
+  });
+}
+
+function scheduleReconnect() {
+  ws = null;
+  setTimeout(openWS, wsReconnectDelay);
+  wsReconnectDelay = Math.min(WS_RECONNECT_CAP, wsReconnectDelay * 2);
+}
+
+openWS();
+</script>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<!-- Phase 4 Agent Chat — talks to newcore on :3777                   -->
+<!-- Owned by the agent-pane sub-agent. Does NOT touch the WS tool   -->
+<!-- proxy code above (that's sub-agent F's territory). The only     -->
+<!-- shared surface with the Phase 2 pipeline is `localStorage` —    -->
+<!-- different keys, no overlap.                                     -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<script type="module">
+'use strict';
+
+/* ── Phase 4 Agent Chat ── */
+
+const NEWCORE_BASE = 'http://localhost:3777';
+const STORAGE_KEY  = 'agent-bridge-chat:v1';
+const MODEL_KEY    = 'agent-bridge-chat:v1:model';
+const MODE_KEY     = 'agent-bridge-chat:v1:mode';
+const MAX_MESSAGES = 100;
+const POLL_INTERVAL_MS = 500;
+const POLL_TIMEOUT_MS  = 5 * 60 * 1000; // 5min hard cap so a stuck agent doesn't poll forever
+const PENPOT_TOOL_PREFIX = 'penpot.';
+
+// ── Element lookups ──
+const $log       = document.getElementById('agent-log');
+const $input     = document.getElementById('agent-input');
+const $send      = document.getElementById('agent-send');
+const $stop      = document.getElementById('agent-stop');
+const $clear     = document.getElementById('agent-clear');
+const $modeChat  = document.getElementById('mode-chat');
+const $modeAgent = document.getElementById('mode-agent');
+const $model     = document.getElementById('agent-model');
+const $banner    = document.getElementById('agent-banner');
+const $bannerTxt = document.getElementById('agent-banner-text');
+const $retry     = document.getElementById('agent-retry');
+const $modalBg   = document.getElementById('agent-modal-bg');
+const $modalTitle= document.getElementById('agent-modal-title-text');
+const $modalMeta = document.getElementById('agent-modal-meta');
+const $modalBody = document.getElementById('agent-modal-content');
+const $modalClose= document.getElementById('agent-modal-close');
+
+// ── State ──
+let mode = 'chat';      // 'chat' | 'agent'
+let healthy = false;    // can we reach newcore?
+let inFlight = false;
+let chatAbort = null;   // AbortController for the in-flight /chat
+let pollTimer = null;   // setTimeout handle for the next /agents/:id poll
+let pollAgentId = null; // the agent we're polling, if any
+let pollStartedAt = 0;
+let lastFocusBeforeModal = null;
+
+// Persisted message log: [{role, content, mode, ts, steps?, artifacts?, error?}]
+let messages = loadMessages();
+
+// ── localStorage helpers ──────────────────────────────────────────
+function loadMessages() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.slice(-MAX_MESSAGES) : [];
+  } catch { return []; }
+}
+function saveMessages() {
+  try {
+    // Trim before persisting.
+    if (messages.length > MAX_MESSAGES) messages = messages.slice(-MAX_MESSAGES);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  } catch (e) {
+    // localStorage can fail in sandboxed iframes — degrade gracefully.
+    console.warn('[agent-chat] localStorage save failed:', e && e.message);
+  }
+}
+function loadString(key, fallback) {
+  try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
+}
+function saveString(key, value) {
+  try { localStorage.setItem(key, value); } catch {}
+}
+
+// ── Rendering ─────────────────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Tiny markdown-ish renderer: ` ` → <code>, **bold** → <strong>. Conservative
+// on purpose — we don't want to interpret agent output as HTML.
+function renderInline(text) {
+  const html = escapeHtml(text)
+    .replace(/`([^`\n]+)`/g, (_, m) => '<code>' + m + '</code>');
+  return html;
+}
+
+function renderEmpty() {
+  $log.innerHTML = '';
+  const empty = document.createElement('div');
+  empty.className = 'empty';
+  empty.textContent = 'No messages yet. Type a prompt below to start chatting with newcore.';
+  $log.appendChild(empty);
+}
+
+function renderAll() {
+  $log.innerHTML = '';
+  if (!messages.length) { renderEmpty(); return; }
+  for (const m of messages) renderMessage(m);
+  scrollToBottom();
+}
+
+function renderMessage(m) {
+  // First-time render: remove the empty state if present.
+  const emptyEl = $log.querySelector('.empty');
+  if (emptyEl) emptyEl.remove();
+
+  const el = document.createElement('div');
+  el.className = 'msg ' + (m.kind || m.role || 'system');
+  el.dataset.mid = m.id || '';
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = labelFor(m);
+  el.appendChild(meta);
+
+  const body = document.createElement('div');
+  body.className = 'body';
+  if (m.kind === 'thinking') {
+    body.textContent = m.content || 'Thinking…';
+  } else {
+    body.innerHTML = renderInline(m.content || '');
+  }
+  el.appendChild(body);
+
+  if (m.steps && m.steps.length) renderSteps(el, m.steps);
+  if (m.artifacts && m.artifacts.length) renderArtifacts(el, m.artifacts, m.agentId);
+
+  $log.appendChild(el);
+  return el;
+}
+
+function labelFor(m) {
+  if (m.kind === 'thinking') return 'agent · ' + (m.state || 'thinking') + (m.totalSteps ? ' (' + (m.currentStep || 0) + '/' + m.totalSteps + ')' : '');
+  if (m.kind === 'error') return 'error';
+  if (m.kind === 'system') return 'system';
+  if (m.role === 'user') return 'you' + (m.mode === 'agent' ? ' · task' : '');
+  if (m.role === 'assistant') return (m.mode === 'agent' ? 'agent' : 'assistant') + (m.model ? ' · ' + m.model : '');
+  return m.role || '';
+}
+
+function renderSteps(parentEl, steps) {
+  const wrap = document.createElement('div');
+  wrap.className = 'steps';
+  for (const s of steps) {
+    const row = document.createElement('div');
+    row.className = 'step';
+    const num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = '#' + s.id;
+    row.appendChild(num);
+
+    if (s.tool && s.tool.startsWith(PENPOT_TOOL_PREFIX)) {
+      const badge = document.createElement('span');
+      badge.className = 'tool-badge';
+      badge.title = 'Penpot tool call';
+      badge.textContent = '🔧 ' + s.tool;
+      row.appendChild(badge);
+    } else if (s.tool) {
+      const badge = document.createElement('span');
+      badge.className = 'tool-badge';
+      badge.style.color = '#aaa';
+      badge.style.background = '#1f1f1f';
+      badge.style.borderColor = '#333';
+      badge.textContent = s.tool;
+      row.appendChild(badge);
+    }
+
+    const desc = document.createElement('span');
+    desc.className = 'desc';
+    desc.textContent = s.description || '';
+    row.appendChild(desc);
+
+    const status = document.createElement('span');
+    status.className = 'status ' + (s.status || 'pending');
+    status.textContent = s.status || 'pending';
+    row.appendChild(status);
+
+    wrap.appendChild(row);
+  }
+  parentEl.appendChild(wrap);
+}
+
+function renderArtifacts(parentEl, artifacts, agentId) {
+  const wrap = document.createElement('div');
+  wrap.className = 'artifacts';
+  for (const a of artifacts) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'artifact-btn';
+    const type = document.createElement('span');
+    type.className = 'type';
+    type.textContent = a.type || 'artifact';
+    const title = document.createElement('span');
+    title.className = 'title';
+    title.textContent = a.title || a.id || '(untitled)';
+    btn.appendChild(type);
+    btn.appendChild(title);
+    btn.addEventListener('click', () => openArtifactModal(a));
+    wrap.appendChild(btn);
+  }
+  parentEl.appendChild(wrap);
+}
+
+function scrollToBottom() {
+  // Only auto-scroll if the user is already near the bottom (don't yank them).
+  const nearBottom = ($log.scrollHeight - $log.scrollTop - $log.clientHeight) < 80;
+  if (nearBottom) $log.scrollTop = $log.scrollHeight;
+}
+
+function pushMessage(m) {
+  m.ts = m.ts || Date.now();
+  m.id = m.id || ('m-' + m.ts + '-' + Math.random().toString(36).slice(2, 6));
+  messages.push(m);
+  if (messages.length > MAX_MESSAGES) messages = messages.slice(-MAX_MESSAGES);
+  renderMessage(m);
+  saveMessages();
+  scrollToBottom();
+  return m;
+}
+
+function updateMessage(id, patch) {
+  const idx = messages.findIndex(m => m.id === id);
+  if (idx < 0) return null;
+  Object.assign(messages[idx], patch);
+  // Re-render that single message in place.
+  const oldEl = $log.querySelector('[data-mid="' + id + '"]');
+  if (oldEl) {
+    const newEl = (function() {
+      // Build a detached element using renderMessage but without appending —
+      // easiest path: render & then swap.
+      const tmpParent = document.createElement('div');
+      // Use a clone approach: temporarily detach, render, take the last child.
+      $log.appendChild(tmpParent);
+      const beforeCount = $log.children.length;
+      renderMessage(messages[idx]);
+      // The new element was appended to $log; move it before oldEl and remove tmp + old.
+      const appended = $log.lastChild;
+      tmpParent.remove();
+      return appended;
+    })();
+    $log.insertBefore(newEl, oldEl);
+    oldEl.remove();
+  }
+  saveMessages();
+  scrollToBottom();
+  return messages[idx];
+}
+
+function removeMessage(id) {
+  const idx = messages.findIndex(m => m.id === id);
+  if (idx < 0) return;
+  messages.splice(idx, 1);
+  const el = $log.querySelector('[data-mid="' + id + '"]');
+  if (el) el.remove();
+  saveMessages();
+  if (!messages.length) renderEmpty();
+}
+
+// ── Health + models bootstrap ─────────────────────────────────────
+async function checkHealth() {
+  showBanner('Checking newcore…', false);
+  try {
+    const r = await fetch(NEWCORE_BASE + '/health', { method: 'GET' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    if (j && j.status === 'ok') {
+      healthy = true;
+      hideBanner();
+      await loadModels();
+      updateSendDisabled();
+      return true;
+    }
+    throw new Error('unexpected health response');
+  } catch (e) {
+    healthy = false;
+    $model.disabled = true;
+    showBanner(
+      'newcore not reachable at :3777 — is it running? Try: ' +
+      'cd ~/coding-agents/repos/open-antigravity/newcore && npm run server',
+      true
+    );
+    updateSendDisabled();
+    return false;
+  }
+}
+
+async function loadModels() {
+  try {
+    const r = await fetch(NEWCORE_BASE + '/info');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    const models = Array.isArray(j && j.models) ? j.models : [];
+    const remembered = loadString(MODEL_KEY, '');
+    $model.innerHTML = '';
+    if (!models.length) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = '(no models)';
+      $model.appendChild(o);
+      $model.disabled = true;
+      return;
+    }
+    for (const m of models) {
+      const o = document.createElement('option');
+      o.value = m.id;
+      o.textContent = m.name ? (m.id + ' — ' + m.name) : m.id;
+      $model.appendChild(o);
+    }
+    // Pick the remembered model if still available; else default to 'mock-default' if present; else first.
+    const ids = models.map(m => m.id);
+    let pick = remembered && ids.includes(remembered) ? remembered
+             : ids.includes('mock-default') ? 'mock-default'
+             : ids[0];
+    $model.value = pick;
+    saveString(MODEL_KEY, pick);
+    $model.disabled = false;
+  } catch (e) {
+    $model.innerHTML = '<option value="">(failed to load)</option>';
+    $model.disabled = true;
+  }
+}
+
+function showBanner(text, isError) {
+  $bannerTxt.textContent = text;
+  $banner.classList.add('show');
+  $banner.style.background = isError ? '#3a1f1f' : '#2a2230';
+  $banner.style.color      = isError ? '#ffb4b4' : '#d8c7ff';
+}
+function hideBanner() {
+  $banner.classList.remove('show');
+}
+
+function updateSendDisabled() {
+  const canSend = healthy && !inFlight && ($model.value || mode === 'agent');
+  // For chat mode we strictly need a model id (the /chat endpoint requires it
+  // per the body shape we send). Agent mode also picks up the same model id,
+  // and newcore will fall back to its default if we omit it.
+  $send.disabled = !canSend;
+  $input.disabled = !healthy;
+}
+
+// ── Mode switching ────────────────────────────────────────────────
+function setMode(next) {
+  mode = next;
+  $modeChat.classList.toggle('active', next === 'chat');
+  $modeAgent.classList.toggle('active', next === 'agent');
+  $modeChat.setAttribute('aria-selected', next === 'chat');
+  $modeAgent.setAttribute('aria-selected', next === 'agent');
+  $input.placeholder = (next === 'agent')
+    ? 'Describe a task for the agent… (Cmd+Enter to send)'
+    : 'Ask the agent… (Cmd+Enter to send)';
+  $stop.title = (next === 'agent')
+    ? 'Stop polling (the agent continues server-side — newcore has no /agents/:id/cancel yet)'
+    : 'Cancel the in-flight request';
+  saveString(MODE_KEY, next);
+}
+$modeChat.addEventListener('click',  () => setMode('chat'));
+$modeAgent.addEventListener('click', () => setMode('agent'));
+
+// ── Sending ───────────────────────────────────────────────────────
+function setInFlight(on) {
+  inFlight = on;
+  $stop.classList.toggle('hidden', !on);
+  updateSendDisabled();
+}
+
+async function sendCurrent() {
+  if (inFlight || !healthy) return;
+  const text = ($input.value || '').trim();
+  if (!text) return;
+
+  const chosenModel = $model.value || 'mock-default';
+  saveString(MODEL_KEY, chosenModel);
+
+  pushMessage({ role: 'user', kind: 'user', mode, content: text });
+  $input.value = '';
+  setInFlight(true);
+
+  if (mode === 'chat') {
+    await doChat(text, chosenModel);
+  } else {
+    await doAgent(text, chosenModel);
+  }
+}
+
+async function doChat(message, model) {
+  chatAbort = new AbortController();
+  try {
+    const r = await fetch(NEWCORE_BASE + '/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, message }),
+      signal: chatAbort.signal,
+    });
+    if (!r.ok) {
+      let detail = 'HTTP ' + r.status;
+      try { const j = await r.json(); detail += ' — ' + (j.error || JSON.stringify(j)); } catch {}
+      pushMessage({ role: 'assistant', kind: 'error', mode: 'chat', content: detail });
+      return;
+    }
+    const j = await r.json();
+    const content = (j && typeof j.content === 'string') ? j.content : JSON.stringify(j);
+    const usage = j && j.usage;
+    const tail = usage ? ('\n\n— ' + (usage.totalTokens || 0) + ' tokens') : '';
+    pushMessage({
+      role: 'assistant', kind: 'assistant', mode: 'chat',
+      model: j && j.model || model,
+      content: content + tail,
+    });
+  } catch (e) {
+    if (e && e.name === 'AbortError') {
+      pushMessage({ role: 'assistant', kind: 'system', content: '(cancelled)' });
+    } else {
+      pushMessage({ role: 'assistant', kind: 'error', mode: 'chat',
+                    content: friendlyFetchError(e) });
+    }
+  } finally {
+    chatAbort = null;
+    setInFlight(false);
+  }
+}
+
+async function doAgent(task, model) {
+  let resp;
+  try {
+    const r = await fetch(NEWCORE_BASE + '/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task, model }),
+    });
+    if (!r.ok) {
+      let detail = 'HTTP ' + r.status;
+      try { const j = await r.json(); detail += ' — ' + (j.error || JSON.stringify(j)); } catch {}
+      pushMessage({ role: 'assistant', kind: 'error', mode: 'agent', content: detail });
+      setInFlight(false);
+      return;
+    }
+    resp = await r.json();
+  } catch (e) {
+    pushMessage({ role: 'assistant', kind: 'error', mode: 'agent',
+                  content: friendlyFetchError(e) });
+    setInFlight(false);
+    return;
+  }
+
+  pollAgentId = resp && resp.id;
+  if (!pollAgentId) {
+    pushMessage({ role: 'assistant', kind: 'error', mode: 'agent',
+                  content: 'Agent spawned but no id was returned: ' + JSON.stringify(resp) });
+    setInFlight(false);
+    return;
+  }
+
+  // Live "thinking" message we update in place.
+  const thinking = pushMessage({
+    kind: 'thinking', mode: 'agent',
+    state: (resp.status && resp.status.state) || 'starting',
+    currentStep: (resp.status && resp.status.currentStep) || 0,
+    totalSteps:  (resp.status && resp.status.totalSteps)  || 0,
+    content: 'Spawning agent ' + pollAgentId + '…',
+    agentId: pollAgentId,
+  });
+
+  pollStartedAt = Date.now();
+  schedulePoll(thinking.id, pollAgentId);
+}
+
+function schedulePoll(thinkingId, agentId) {
+  if (pollTimer) clearTimeout(pollTimer);
+  pollTimer = setTimeout(() => pollOnce(thinkingId, agentId), POLL_INTERVAL_MS);
+}
+
+async function pollOnce(thinkingId, agentId) {
+  // If user clicked Stop, the in-flight flag is cleared and we just bail.
+  if (!inFlight || pollAgentId !== agentId) return;
+
+  // Hard timeout guard.
+  if (Date.now() - pollStartedAt > POLL_TIMEOUT_MS) {
+    updateMessage(thinkingId, {
+      kind: 'error', content: 'Agent polling timed out after ' + Math.round(POLL_TIMEOUT_MS/1000) + 's. ' +
+                              'Agent ' + agentId + ' may still be running server-side.',
+    });
+    stopPolling();
+    return;
+  }
+
+  let status;
+  try {
+    const r = await fetch(NEWCORE_BASE + '/agents/' + encodeURIComponent(agentId));
+    if (!r.ok) {
+      // 404 means the agent vanished. Show as error and stop.
+      let detail = 'HTTP ' + r.status;
+      try { const j = await r.json(); detail += ' — ' + (j.error || ''); } catch {}
+      updateMessage(thinkingId, { kind: 'error', content: 'Agent status check failed: ' + detail });
+      stopPolling();
+      return;
+    }
+    status = await r.json();
+  } catch (e) {
+    // Connection dropped mid-run. Surface and stop.
+    updateMessage(thinkingId, { kind: 'error', content: 'Lost connection while polling: ' + friendlyFetchError(e) });
+    stopPolling();
+    return;
+  }
+
+  // Update in-place thinking bubble with progress.
+  updateMessage(thinkingId, {
+    state: status.state,
+    currentStep: status.currentStep || 0,
+    totalSteps:  status.totalSteps  || 0,
+    content: 'Agent ' + agentId + ' — ' + status.state +
+             ((status.totalSteps || 0) ? (' (step ' + (status.currentStep || 0) + '/' + status.totalSteps + ')') : '') +
+             (status.error ? ('\n' + status.error) : ''),
+  });
+
+  if (status.state === 'completed' || status.state === 'failed' || status.state === 'cancelled') {
+    await finalizeAgent(thinkingId, agentId, status);
+    stopPolling();
+    return;
+  }
+
+  // Keep going.
+  schedulePoll(thinkingId, agentId);
+}
+
+async function finalizeAgent(thinkingId, agentId, status) {
+  // Fetch artifacts to build the final assistant message.
+  let arts = [];
+  try {
+    const r = await fetch(NEWCORE_BASE + '/artifacts/' + encodeURIComponent(agentId));
+    if (r.ok) arts = await r.json();
+  } catch { /* non-fatal — we'll still show the summary */ }
+
+  // Synthesise steps from the artifact log entries.
+  const stepLogs = arts.filter(a => a && a.type === 'log');
+  const planArt = arts.find(a => a && a.type === 'execution_plan');
+  const verifyArt = arts.find(a => a && a.type === 'verification');
+
+  let plan = null;
+  if (planArt) {
+    try { plan = JSON.parse(planArt.content); } catch { plan = null; }
+  }
+  const steps = (plan && Array.isArray(plan.steps)) ? plan.steps.map(p => {
+    // Find a matching log entry to grab status.
+    const log = stepLogs.find(l => l.title && l.title.startsWith('Step ' + p.id + ':'));
+    let st = 'pending';
+    if (log && /Status:\s*(\w+)/i.test(log.content)) {
+      st = log.content.match(/Status:\s*(\w+)/i)[1].toLowerCase();
+    }
+    return {
+      id: p.id,
+      description: p.description || '',
+      tool: p.tool || '',
+      status: st,
+    };
+  }) : [];
+
+  // Pull a short summary out of the verification report if we have one.
+  let summary = '';
+  if (verifyArt && verifyArt.content) {
+    const lines = verifyArt.content.split('\n').slice(0, 6).join('\n');
+    summary = lines;
+  } else {
+    summary = 'Agent ' + status.state + (status.error ? (': ' + status.error) : '.');
+  }
+
+  // Convert the artifact list into clickable items for the message.
+  const artLinks = arts.map(a => ({
+    id: a.id, type: a.type, title: a.title, content: a.content, metadata: a.metadata,
+  }));
+
+  updateMessage(thinkingId, {
+    kind: (status.state === 'completed') ? 'assistant' : 'error',
+    role: 'assistant',
+    mode: 'agent',
+    model: status.model,
+    agentId,
+    content: summary,
+    steps,
+    artifacts: artLinks,
+  });
+}
+
+function stopPolling() {
+  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+  pollAgentId = null;
+  setInFlight(false);
+}
+
+// ── Stop button ──────────────────────────────────────────────────
+$stop.addEventListener('click', () => {
+  if (mode === 'chat') {
+    if (chatAbort) chatAbort.abort();
+  } else {
+    // Agent mode: stop polling. Agent continues server-side.
+    if (pollAgentId) {
+      pushMessage({
+        kind: 'system',
+        content: 'Stopped polling agent ' + pollAgentId + '. (The run continues server-side — newcore has no /agents/:id/cancel yet.)',
+      });
+    }
+    stopPolling();
+  }
+});
+
+// ── Send / keyboard ──────────────────────────────────────────────
+$send.addEventListener('click', sendCurrent);
+$input.addEventListener('keydown', (e) => {
+  // Cmd+Enter / Ctrl+Enter sends.
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    sendCurrent();
+  }
+});
+
+// ── Clear ────────────────────────────────────────────────────────
+$clear.addEventListener('click', () => {
+  // If a chat is in flight, abort it; if polling, stop it.
+  if (chatAbort) { try { chatAbort.abort(); } catch {} }
+  stopPolling();
+  messages = [];
+  saveMessages();
+  renderEmpty();
+});
+
+// ── Retry banner button ───────────────────────────────────────────
+$retry.addEventListener('click', checkHealth);
+
+// ── Modal ─────────────────────────────────────────────────────────
+function openArtifactModal(a) {
+  $modalTitle.textContent = a.title || a.id || 'Artifact';
+  const bits = [];
+  if (a.type) bits.push(a.type);
+  if (a.metadata && typeof a.metadata === 'object') {
+    for (const [k, v] of Object.entries(a.metadata)) bits.push(k + '=' + v);
+  }
+  $modalMeta.textContent = bits.join(' · ');
+  // Pretty-print JSON artifacts; pass-through everything else.
+  let body = a.content || '';
+  if (typeof body === 'string' && body.trim().startsWith('{')) {
+    try { body = JSON.stringify(JSON.parse(body), null, 2); } catch {}
+  }
+  $modalBody.textContent = body || '(empty)';
+  lastFocusBeforeModal = document.activeElement;
+  $modalBg.hidden = false;
+  $modalBg.classList.add('show');
+  // Move focus into the dialog for keyboard users.
+  $modalClose.focus();
+}
+function closeArtifactModal() {
+  $modalBg.classList.remove('show');
+  $modalBg.hidden = true;
+  if (lastFocusBeforeModal && typeof lastFocusBeforeModal.focus === 'function') {
+    try { lastFocusBeforeModal.focus(); } catch {}
+  }
+  lastFocusBeforeModal = null;
+}
+$modalClose.addEventListener('click', closeArtifactModal);
+$modalBg.addEventListener('click', (e) => { if (e.target === $modalBg) closeArtifactModal(); });
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $modalBg.classList.contains('show')) closeArtifactModal();
+});
+
+// ── Model dropdown change ────────────────────────────────────────
+$model.addEventListener('change', () => saveString(MODEL_KEY, $model.value));
+
+// ── Pretty errors for fetch failures ─────────────────────────────
+function friendlyFetchError(e) {
+  const msg = (e && e.message) || String(e);
+  if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+    return 'newcore not reachable at :3777 — is it running? Try: ' +
+           'cd ~/coding-agents/repos/open-antigravity/newcore && npm run server';
+  }
+  return msg;
+}
+
+// ── Boot ──────────────────────────────────────────────────────────
+setMode(loadString(MODE_KEY, 'chat'));
+renderAll();
+checkHealth();
+</script>
+</body>
+</html>
