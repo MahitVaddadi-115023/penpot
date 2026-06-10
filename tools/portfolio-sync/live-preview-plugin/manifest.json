@@ -1,0 +1,10 @@
+{
+  "name": "Portfolio Live Preview",
+  "description": "Live preview of the portfolio dev server with one-click canvas → portfolio HTML sync.",
+  "version": 2,
+  "code": "plugin.js",
+  "permissions": [
+    "content:read",
+    "content:write"
+  ]
+}

@@ -1,9 +1,64 @@
 <!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-*{margin:0;padding:0;box-sizing:border-box}body{background:#1e1e1e;font-family:system-ui}
-.tb{display:flex;gap:6px;padding:8px;background:#2a2a2a;align-items:center}
-button{background:#3a3a3a;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px}
-button:hover{background:#555}.lbl{color:#888;font-size:11px;margin-right:4px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e1e;font-family:system-ui;color:#e8e8e8}
+.tb{display:flex;gap:6px;padding:8px;background:#2a2a2a;align-items:center;flex-wrap:wrap}
+.tb button{background:#3a3a3a;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;height:24px;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:0;transition:background .12s ease,color .12s ease,opacity .12s ease}
+.tb button:hover{background:#555}
+.tb button:disabled{opacity:.55;cursor:wait}
+.lbl{color:#888;font-size:11px;margin-right:4px}
+.sep{width:1px;height:18px;background:#555;margin:0 6px;flex:0 0 1px}
+.sync-btn{background:#3a3146 !important;color:#d8c7ff !important;border:1px solid #4a3a60 !important;padding:3px 10px !important}
+.sync-btn:hover{background:#4a3a60 !important;color:#fff !important}
+.sync-btn.is-busy{background:#5a4a7a !important}
+.sync-btn.is-ok{background:#3a5a3a !important;color:#c8f0c8 !important;border-color:#4a7a4a !important}
+.sync-btn.is-err{background:#5a3a3a !important;color:#f0c8c8 !important;border-color:#7a4a4a !important}
+/* Restore is "destructive overwrite-of-current" — visually distinct from sync (write to portfolio source) */
+.restore-btn{background:#21404a !important;color:#a8e6f0 !important;border:1px solid #2f5a68 !important;padding:3px 10px !important}
+.restore-btn:hover{background:#2f5a68 !important;color:#fff !important}
+.restore-btn.is-busy{background:#3a6e80 !important}
+.restore-btn.is-ok{background:#3a5a3a !important;color:#c8f0c8 !important;border-color:#4a7a4a !important}
+.restore-btn.is-err{background:#5a3a3a !important;color:#f0c8c8 !important;border-color:#7a4a4a !important}
+.accent-label{color:#b692f6;font-size:11px;margin:0 4px 0 2px;letter-spacing:.02em}
 iframe{width:100%;border:none;height:calc(100vh - 40px)}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal-bg.show{display:flex}
+.modal{background:#252525;border:1px solid #3a3a3a;border-radius:8px;width:min(820px,92vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.6)}
+.modal-h{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #3a3a3a}
+.modal-h h3{font-size:13px;font-weight:600;color:#fff;display:flex;align-items:center;gap:8px}
+.modal-h h3 .dot{width:8px;height:8px;border-radius:50%;background:#b692f6;display:inline-block}
+.modal-h h3.err .dot{background:#ff6b6b}
+.modal-h h3.ok .dot{background:#7cd97c}
+.modal-meta{color:#888;font-size:11px;font-variant-numeric:tabular-nums}
+.modal-body{padding:0;overflow:auto;flex:1}
+.modal pre{margin:0;padding:14px 16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.5;color:#e8e8e8;white-space:pre-wrap;word-break:break-word}
+.modal pre.empty{color:#666;font-style:italic}
+.modal pre.stderr{color:#ffb4b4;border-top:1px solid #3a3a3a;background:#2a2222}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid #3a3a3a}
+.modal-foot button{background:#3a3a3a;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;height:26px}
+.modal-foot button:hover{background:#555}
+.modal-foot .primary{background:#4a3a60;color:#d8c7ff}
+.modal-foot .primary:hover{background:#5a4a7a;color:#fff}
+.modal-foot .teal{background:#2f5a68;color:#a8e6f0}
+.modal-foot .teal:hover{background:#3a6e80;color:#fff}
+.modal-foot .danger{background:#5a3a3a;color:#f0c8c8}
+.modal-foot .danger:hover{background:#7a4a4a;color:#fff}
+
+/* Snapshot list */
+.snap-list{display:flex;flex-direction:column;gap:0}
+.snap-row{display:grid;grid-template-columns:1fr 1fr 80px 80px auto;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid #2f2f2f;font-size:12px}
+.snap-row:last-child{border-bottom:none}
+.snap-row .ts{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#a8e6f0;font-size:11.5px}
+.snap-row .lab{color:#d8d8d8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.snap-row .lab .trig{color:#888;font-size:10.5px;margin-left:6px;text-transform:uppercase;letter-spacing:.04em}
+.snap-row .num{color:#bbb;font-variant-numeric:tabular-nums;text-align:right}
+.snap-row .act button{background:#2f5a68;color:#a8e6f0;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11.5px;height:24px}
+.snap-row .act button:hover{background:#3a6e80;color:#fff}
+.snap-empty{padding:24px 16px;color:#888;font-style:italic;text-align:center}
+.confirm-text{padding:18px 18px 4px;font-size:13px;color:#e8e8e8;line-height:1.55}
+.confirm-text .id{font-family:ui-monospace,Menlo,monospace;color:#a8e6f0;font-size:11.5px;background:#1f2f33;padding:2px 6px;border-radius:3px;display:inline-block;margin-top:4px}
+.confirm-warn{padding:0 18px 12px;color:#ffc97a;font-size:11.5px}
 </style></head><body>
 <div class="tb">
   <span class="lbl">Live Preview</span>
@@ -11,9 +66,323 @@ iframe{width:100%;border:none;height:calc(100vh - 40px)}
   <button onclick="go('/consulting')">Consulting</button>
   <button onclick="go('/blog')">Blog</button>
   <button onclick="reload()">↺ Refresh</button>
+  <span class="sep" aria-hidden="true"></span>
+  <span class="accent-label">Canvas Sync</span>
+  <button class="sync-btn" id="btn-preview" onclick="runPreview(this)" title="Dry-run: show what would change without writing">↑ Preview Sync</button>
+  <button class="sync-btn" id="btn-sync"    onclick="runSync(this)"    title="Apply canvas → portfolio source (writes files)">✓ Sync to Source</button>
+  <button class="restore-btn" id="btn-restore" onclick="openRestoreList(this)" title="Restore portfolio/src from a previous snapshot">↺ Restore…</button>
+  <button class="sync-btn" id="btn-reload"  onclick="reloadSite(this)" title="Reload the portfolio iframe to pick up HMR">▶ Reload Site</button>
 </div>
 <iframe id="f" src="http://localhost:4321/"></iframe>
+
+<!-- Snapshot list modal -->
+<div class="modal-bg" id="snap-modal" onclick="if(event.target===this)closeSnapList()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="snap-title">
+    <div class="modal-h">
+      <h3 id="snap-title"><span class="dot" aria-hidden="true" style="background:#a8e6f0"></span>
+        <span>Restore from snapshot</span></h3>
+      <span class="modal-meta" id="snap-meta">—</span>
+    </div>
+    <div class="modal-body">
+      <div class="snap-list" id="snap-list">
+        <div class="snap-empty">Loading…</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button onclick="closeSnapList()">Close</button>
+      <button class="teal" onclick="refreshSnapList()">Refresh</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm restore modal -->
+<div class="modal-bg" id="confirm-modal" onclick="if(event.target===this)closeConfirm()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" style="width:min(520px,92vw)">
+    <div class="modal-h">
+      <h3 id="confirm-title"><span class="dot" aria-hidden="true" style="background:#ffc97a"></span>
+        <span>Confirm restore</span></h3>
+    </div>
+    <div class="confirm-text" id="confirm-text">…</div>
+    <div class="confirm-warn">
+      This overwrites your current <code>portfolio/src/</code>. A pre-restore backup of the current
+      state will be taken automatically before any write.
+    </div>
+    <div class="modal-foot">
+      <button onclick="closeConfirm()">Cancel</button>
+      <button class="danger" id="confirm-go" onclick="confirmRestore()">Restore</button>
+    </div>
+  </div>
+</div>
+
+<!-- Result modal -->
+<div class="modal-bg" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="m-title" aria-describedby="m-stdout">
+    <div class="modal-h">
+      <h3 id="m-title"><span class="dot" aria-hidden="true"></span><span id="m-title-text">Result</span></h3>
+      <span class="modal-meta" id="m-meta" aria-live="polite"></span>
+    </div>
+    <div class="modal-body" id="m-body">
+      <pre id="m-stdout" class="empty" aria-label="Standard output">(no output)</pre>
+      <pre id="m-stderr" class="stderr" aria-label="Standard error" hidden></pre>
+    </div>
+    <div class="modal-foot">
+      <button onclick="closeModal()" aria-label="Close result dialog">Close</button>
+      <button class="primary" id="m-action" onclick="closeModal()">Done</button>
+    </div>
+  </div>
+</div>
+
 <script>
+const SYNC_API = 'http://127.0.0.1:9007';
+
 function go(p){document.getElementById('f').src='http://localhost:4321'+p}
 function reload(){const f=document.getElementById('f');f.src=f.src}
+
+function reloadSite(btn){
+  // Just nudges the iframe so HMR / a fresh GET picks up any new build.
+  reload();
+  flashOk(btn, '▶ Reload Site');
+}
+
+async function runPreview(btn){ await runSyncCall(btn, '/preview', '↑ Preview Sync', 'Preview (dry-run)'); }
+async function runSync(btn)    { await runSyncCall(btn, '/sync',    '✓ Sync to Source', 'Sync to Source');   }
+
+async function runSyncCall(btn, endpoint, originalLabel, modalTitle){
+  if (btn.disabled) return;
+  const orig = btn.textContent;
+  btn.dataset.orig = originalLabel;
+  setBusy(btn);
+  let result;
+  try {
+    const r = await fetch(SYNC_API + endpoint, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({})
+    });
+    // Expect JSON; tolerate non-JSON (e.g. server crash) by surfacing the text.
+    const txt = await r.text();
+    try { result = JSON.parse(txt); }
+    catch { result = { ok:false, exitCode:null, stdout:'', stderr: `Non-JSON response (HTTP ${r.status}):\n${txt}`, durationMs: 0 }; }
+    if (!r.ok && result.ok !== false) result.ok = false;
+  } catch (err) {
+    result = {
+      ok: false, exitCode: null, stdout: '',
+      stderr: `Could not reach ${SYNC_API}${endpoint}: ${err.message}\n\nIs canvas-to-portfolio-server.mjs running? Try:\n  ./launch-all.sh canvas-export`,
+      durationMs: 0,
+    };
+  }
+  showResult(modalTitle, result);
+  if (result.ok) flashOk(btn, originalLabel);
+  else flashErr(btn, originalLabel);
+}
+
+function setBusy(btn){
+  btn.dataset.orig = btn.dataset.orig || btn.textContent;
+  btn.disabled = true;
+  btn.classList.add('is-busy');
+  btn.classList.remove('is-ok','is-err');
+  btn.textContent = '…';
+}
+
+function flashOk(btn, originalLabel){
+  btn.disabled = false;
+  btn.classList.remove('is-busy','is-err');
+  btn.classList.add('is-ok');
+  btn.textContent = '✓';
+  setTimeout(() => {
+    btn.classList.remove('is-ok');
+    btn.textContent = originalLabel;
+  }, 1000);
+}
+
+function flashErr(btn, originalLabel){
+  btn.disabled = false;
+  btn.classList.remove('is-busy','is-ok');
+  btn.classList.add('is-err');
+  btn.textContent = '✗';
+  setTimeout(() => {
+    btn.classList.remove('is-err');
+    btn.textContent = originalLabel;
+  }, 1400);
+}
+
+function showResult(title, r){
+  const titleEl = document.getElementById('m-title');
+  const titleText = document.getElementById('m-title-text');
+  const meta = document.getElementById('m-meta');
+  const out = document.getElementById('m-stdout');
+  const err = document.getElementById('m-stderr');
+
+  titleEl.classList.toggle('ok',  r.ok === true);
+  titleEl.classList.toggle('err', r.ok === false);
+  titleText.textContent = title + (r.ok ? ' — OK' : ' — Failed');
+
+  const exitStr = (r.exitCode === null || r.exitCode === undefined) ? '–' : String(r.exitCode);
+  meta.textContent = `exit ${exitStr} · ${(r.durationMs ?? 0)} ms`;
+
+  if (r.stdout && r.stdout.trim().length){
+    out.textContent = r.stdout;
+    out.classList.remove('empty');
+  } else {
+    out.textContent = '(no stdout)';
+    out.classList.add('empty');
+  }
+  if (r.stderr && r.stderr.trim().length){
+    err.hidden = false;
+    err.textContent = r.stderr;
+  } else {
+    err.hidden = true;
+    err.textContent = '';
+  }
+  const modal = document.getElementById('modal');
+  modal.classList.add('show');
+  // Auto-scroll modal body to top on open so users see the start of the diff,
+  // not whatever scroll position lingered from the previous result.
+  const body = document.getElementById('m-body');
+  if (body) body.scrollTop = 0;
+  // Move focus into the dialog for keyboard users.
+  const closeBtn = modal.querySelector('.modal-foot button');
+  if (closeBtn) closeBtn.focus();
+}
+
+function closeModal(){
+  document.getElementById('modal').classList.remove('show');
+}
+
+window.addEventListener('keydown', (e) => {
+  // Only handle Escape when one of our modals is actually open — otherwise we'd
+  // be swallowing Escape from the underlying Penpot UI.
+  if (e.key !== 'Escape') return;
+  const result = document.getElementById('modal');
+  const confirmM = document.getElementById('confirm-modal');
+  const snapM = document.getElementById('snap-modal');
+  if (confirmM && confirmM.classList.contains('show')) return closeConfirm();
+  if (snapM && snapM.classList.contains('show')) return closeSnapList();
+  if (result && result.classList.contains('show')) return closeModal();
+});
+
+// ─── Snapshot restore flow ─────────────────────────────────────────────────
+let _pendingRestore = null; // { id, label, tsIso }
+
+async function openRestoreList(btn){
+  setBusy(btn);
+  try {
+    await refreshSnapList();
+    document.getElementById('snap-modal').classList.add('show');
+    flashOk(btn, '↺ Restore…');
+  } catch (err) {
+    flashErr(btn, '↺ Restore…');
+    showResult('Snapshots', { ok:false, exitCode:null, stdout:'', stderr: err.message, durationMs:0 });
+  }
+}
+
+function closeSnapList(){ document.getElementById('snap-modal').classList.remove('show'); }
+function closeConfirm(){ document.getElementById('confirm-modal').classList.remove('show'); _pendingRestore = null; }
+
+function fmtBytes(n){
+  if (!n && n !== 0) return '–';
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  return (n/1024/1024).toFixed(2) + ' MB';
+}
+
+function escHtml(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+async function refreshSnapList(){
+  const listEl = document.getElementById('snap-list');
+  const metaEl = document.getElementById('snap-meta');
+  listEl.innerHTML = '<div class="snap-empty">Loading…</div>';
+  metaEl.textContent = '—';
+  let snaps = [];
+  try {
+    const r = await fetch(SYNC_API + '/snapshots');
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'unknown error');
+    snaps = j.snapshots || [];
+  } catch (err) {
+    listEl.innerHTML = `<div class="snap-empty">Failed to load: ${escHtml(err.message)}</div>`;
+    return;
+  }
+  metaEl.textContent = `${snaps.length} snapshot${snaps.length === 1 ? '' : 's'}`;
+  if (snaps.length === 0) {
+    listEl.innerHTML = '<div class="snap-empty">No snapshots yet. Run a sync to create one.</div>';
+    return;
+  }
+  listEl.innerHTML = snaps.map((s) => {
+    const ts = s.tsIso || (s.ts ? new Date(s.ts * 1000).toISOString() : '?');
+    const trig = s.trigger ? `<span class="trig">${escHtml(s.trigger)}</span>` : '';
+    return `<div class="snap-row">
+      <div class="ts">${escHtml(ts)}</div>
+      <div class="lab">${escHtml(s.label || '(no label)')} ${trig}</div>
+      <div class="num">${s.fileCount ?? '–'} files</div>
+      <div class="num">${fmtBytes(s.totalBytes)}</div>
+      <div class="act"><button data-id="${escHtml(s.id)}" data-label="${escHtml(s.label || '')}" data-ts="${escHtml(ts)}">Restore</button></div>
+    </div>`;
+  }).join('');
+  // Wire up buttons (avoid inline onclick to keep data clean).
+  listEl.querySelectorAll('.act button').forEach((b) => {
+    b.addEventListener('click', () => askConfirmRestore({
+      id: b.dataset.id, label: b.dataset.label, tsIso: b.dataset.ts,
+    }));
+  });
+}
+
+function askConfirmRestore(meta){
+  _pendingRestore = meta;
+  const label = meta.label || '(no label)';
+  document.getElementById('confirm-text').innerHTML = `
+    Restore portfolio/src from snapshot taken at <strong>${escHtml(meta.tsIso)}</strong>?<br>
+    Label: <strong>${escHtml(label)}</strong><br>
+    <span class="id">${escHtml(meta.id)}</span>
+  `;
+  closeSnapList();
+  document.getElementById('confirm-modal').classList.add('show');
+  const go = document.getElementById('confirm-go');
+  if (go) go.focus();
+}
+
+async function confirmRestore(){
+  if (!_pendingRestore) return closeConfirm();
+  const { id, label, tsIso } = _pendingRestore;
+  closeConfirm();
+  let result;
+  try {
+    const r = await fetch(SYNC_API + '/snapshots/restore', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ id }),
+    });
+    const txt = await r.text();
+    try { result = JSON.parse(txt); }
+    catch { result = { ok:false, exitCode:null, stdout:'', stderr:`Non-JSON response (HTTP ${r.status}):\n${txt}`, durationMs:0 }; }
+    if (!r.ok && result.ok !== false) result.ok = false;
+  } catch (err) {
+    result = { ok:false, exitCode:null, stdout:'',
+      stderr:`Could not reach ${SYNC_API}/snapshots/restore: ${err.message}`, durationMs:0 };
+  }
+  showResult(`Restore — ${label || id}`, {
+    ok: result.ok,
+    exitCode: result.ok ? 0 : (result.exitCode ?? null),
+    stdout: result.message ? `${result.message}\n\n${result.stdout || ''}` : (result.stdout || ''),
+    stderr: result.stderr || '',
+    durationMs: result.durationMs || 0,
+  });
+  // Nudge iframe so the user sees the restored site immediately.
+  if (result.ok) {
+    setTimeout(() => reload(), 400);
+  }
+}
+
+// Penpot plugin runtime → iframe message bridge (optional; safe no-op if the
+// page is loaded standalone in a regular browser tab).
+window.addEventListener('message', (ev) => {
+  const d = ev.data;
+  if (!d || typeof d !== 'object') return;
+  // Reserved for future page-aware sync (e.g. auto-select the current Penpot
+  // page in the sync request). Currently a no-op so we don't break anything.
+});
 </script></body></html>

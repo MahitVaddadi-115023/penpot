@@ -60,18 +60,39 @@
     const BASE = "http://localhost:9001";
     const API  = BASE + "/api/rpc/command/";
 
-    // Plugin to auto-install
-    const LIVE_EMBED = {
-      "plugin-id":   "live-embed-portfolio-local",
-      "url":         BASE + "/plugins/live-embed/manifest.json",
-      "version":     1,
-      "name":        "Live Embed",
-      "description": "Overlays a live iframe of localhost:4321 on the design canvas",
-      "host":        BASE,
-      "code":        "plugin.js",
-      "icon":        "icon.svg",
-      "permissions": []
-    };
+    // Plugins to auto-install. Each entry mirrors the registry shape
+    // produced by app.plugins.register/parse-manifest:
+    //   { plugin-id, name, host, code, permissions, [description], [icon], [url], [version] }
+    // host is the manifest URL with the path stripped — matches the
+    // parse-manifest behaviour for version 1 manifests.
+    const PLUGINS_TO_INSTALL = [
+      {
+        "plugin-id":   "live-embed-portfolio-local",
+        "url":         BASE + "/plugins/live-embed/manifest.json",
+        "version":     1,
+        "name":        "Live Embed",
+        "description": "Overlays a live iframe of localhost:4321 on the design canvas",
+        "host":        BASE,
+        "code":        "plugin.js",
+        "icon":        "icon.svg",
+        "permissions": []
+      },
+      {
+        // Portfolio Live Preview plugin — served by tools/portfolio-sync/live-preview-server.mjs on :9005.
+        // Permissions match live-preview-plugin/manifest.json.
+        "plugin-id":   "portfolio-live-preview-local",
+        "url":         "http://localhost:9005/manifest.json",
+        "version":     2,
+        "name":        "Portfolio Live Preview",
+        "description": "Live preview of the portfolio dev server with one-click canvas → portfolio HTML sync.",
+        "host":        "http://localhost:9005",
+        "code":        "plugin.js",
+        "permissions": ["content:read", "content:write"]
+      }
+    ];
+
+    // Kept for backward compatibility — first entry is the one we open in the workspace.
+    const LIVE_EMBED = PLUGINS_TO_INSTALL[0];
 
     function sub(msg) { document.getElementById("sub").textContent = msg; }
 
@@ -92,21 +113,50 @@
         sub("Authenticating…");
         await rpc("login-with-password", { email: "vsaimahit@gmail.com", password: "penpot-local-2026" });
 
-        // 2. Fetch profile to get existing plugin registry
+        // 2. Fetch profile to get existing plugin registry + MCP status
         sub("Loading profile…");
         const profile = await rpc("get-profile", {});
-        const existing = profile?.props?.plugins ?? { ids: [], data: {} };
+        const existing  = profile?.props?.plugins    ?? { ids: [], data: {} };
+        const mcpActive = profile?.props?.["mcp-enabled"] === true;
 
-        // 3. Merge Live Embed plugin (idempotent — skip if already present)
-        const id = LIVE_EMBED["plugin-id"];
-        if (!existing.ids.includes(id)) {
-          sub("Installing Live Embed plugin…");
-          const merged = {
-            ids:  [...(existing.ids || []), id],
-            data: { ...(existing.data || {}), [id]: LIVE_EMBED }
-          };
-          await rpc("update-profile-props", { props: { plugins: merged } });
+        // 3. Ensure an MCP access token exists (needed for init-mcp to start the plugin).
+        //    get-current-mcp-token returns 204 (null) when none exist — create one if missing.
+        sub("Checking MCP token…");
+        const mcpToken = await rpc("get-current-mcp-token", {}).catch(() => null);
+        if (!mcpToken?.token) {
+          await rpc("create-access-token", { name: "mcp-local", type: "mcp" }).catch(() => null);
         }
+
+        // 4. Idempotently ensure all auto-install plugins are registered AND mcp-enabled is true.
+        //    Single update-profile-props call covers everything to avoid races.
+        const existingIds  = Array.isArray(existing.ids) ? existing.ids : [];
+        const existingData = (existing.data && typeof existing.data === "object") ? existing.data : {};
+        const mergedIds    = [...existingIds];
+        const mergedData   = { ...existingData };
+        const installed    = [];
+        let   anyAdded     = false;
+
+        for (const plugin of PLUGINS_TO_INSTALL) {
+          const id = plugin["plugin-id"];
+          if (!mergedIds.includes(id)) {
+            mergedIds.push(id);
+            mergedData[id] = plugin;
+            anyAdded = true;
+            installed.push("+ " + plugin.name + " (" + plugin.url + ")");
+          } else {
+            installed.push("✓ " + plugin.name + " already registered");
+          }
+        }
+
+        if (anyAdded || !mcpActive) {
+          sub("Configuring plugins…");
+          const merged = { ids: mergedIds, data: mergedData };
+          await rpc("update-profile-props", {
+            props: { plugins: merged, "mcp-enabled": true }
+          });
+        }
+        // Surface registration status on the page for debug visibility.
+        console.log("[auto-login] plugin registration:\n" + installed.join("\n"));
 
         // 4. Done — redirect directly to Portfolio Design workspace with Live Embed open.
         // Workspace URL format: BASE/?plugin=<url>#/workspace/<project-id>/<file-id>

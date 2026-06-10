@@ -99,3 +99,6 @@
 /opencode.json
 /.codex/
 /tools/__pycache__
+
+# portfolio-sync runtime state (snapshots, pidfiles, last-sync cache)
+tools/portfolio-sync/state/

@@ -46,6 +46,31 @@ else
   echo "==> No auto-login.html at $AUTO_LOGIN_SRC — skipping copy."
 fi
 
+# ── Live Preview plugin server (port 9005) ────────────────────────────────────
+# auto-login.html auto-registers a Penpot plugin pointing at
+# http://localhost:9005/manifest.json. The Penpot workspace fetches that
+# manifest to verify the registration, so the server must be live before we
+# open the auto-login page.
+LP_SCRIPT="$SCRIPT_DIR/live-preview-server.mjs"
+if [ -f "$LP_SCRIPT" ]; then
+  if lsof -nP -iTCP:9005 -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "==> Live preview plugin server already running on :9005."
+  elif command -v node >/dev/null 2>&1; then
+    echo "==> Starting live preview plugin server on :9005..."
+    nohup node "$LP_SCRIPT" >> /tmp/live-preview.log 2>&1 </dev/null & disown
+    echo $! > /tmp/live-preview.pid
+    for _i in $(seq 1 10); do
+      if curl -sS -m 1 -o /dev/null -w '%{http_code}' http://localhost:9005/manifest.json 2>/dev/null | grep -q '^2'; then
+        echo "    Live preview ready at http://localhost:9005/"
+        break
+      fi
+      sleep 0.5
+    done
+  else
+    echo "==> node not on PATH — skipping live preview plugin server."
+  fi
+fi
+
 echo "==> Opening auto-login page: $AUTO_LOGIN_URL"
 open "$AUTO_LOGIN_URL" 2>/dev/null || echo "    (open failed — visit $AUTO_LOGIN_URL manually)"
 

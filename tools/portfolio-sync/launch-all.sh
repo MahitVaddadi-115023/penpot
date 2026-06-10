@@ -9,8 +9,12 @@
 #   webhook       — start webhook-server (Vercel + GitHub push triggers)
 #   live-preview  — serve the live-preview Penpot plugin iframe on :9005
 #   html-render   — serve the canvas-as-HTML preview on :9006
+#   canvas-export — serve the canvas → portfolio HTML sync API on :9007
+#                   (also exposes /snapshots, /snapshots/restore, /snapshots/diff/:id
+#                    — see snapshot.mjs; pre-sync snapshots are taken automatically)
+#   source-watcher — V2 reverse-direction watcher (.astro/.css/.ts → Penpot)
 #   screenshots   — one-shot run of the screenshot pipeline
-#   sync          — bridge + watcher + webhook + live-preview + html-render (all background services)
+#   sync          — bridge + watcher + webhook + live-preview + html-render + canvas-export + source-watcher
 #   stop-sync     — kill the background services started by 'sync'
 #   all           — penpot
 #
@@ -102,17 +106,41 @@ case "$TARGET" in
       echo "  Started PID $(cat /tmp/canvas-to-html.pid) — log: /tmp/canvas-to-html.log"
     fi
     ;;
+  canvas-export)
+    echo ""
+    echo "━━━ Canvas → Portfolio Sync API (port 9007, background) ━━"
+    if lsof -nP -iTCP:9007 -sTCP:LISTEN >/dev/null 2>&1; then
+      echo "  Already listening on :9007 — leaving it alone."
+    else
+      nohup node "$SCRIPTS_DIR/canvas-to-portfolio-server.mjs" >> /tmp/canvas-to-portfolio-server.log 2>&1 </dev/null & disown
+      echo $! > /tmp/canvas-to-portfolio-server.pid
+      echo "  Started PID $(cat /tmp/canvas-to-portfolio-server.pid) — log: /tmp/canvas-to-portfolio-server.log"
+    fi
+    ;;
+  source-watcher)
+    echo ""
+    echo "━━━ Source → Canvas Watcher (V2 reverse direction, background) ━━"
+    if [ -f /tmp/source-to-canvas-watcher.pid ] && kill -0 "$(cat /tmp/source-to-canvas-watcher.pid)" 2>/dev/null; then
+      echo "  Already running (PID $(cat /tmp/source-to-canvas-watcher.pid)) — leaving it alone."
+    else
+      nohup node "$SCRIPTS_DIR/source-to-canvas-watcher.mjs" >> /tmp/source-to-canvas-watcher.log 2>&1 </dev/null & disown
+      echo $! > /tmp/source-to-canvas-watcher.pid
+      echo "  Started PID $(cat /tmp/source-to-canvas-watcher.pid) — log: /tmp/source-to-canvas-watcher.log"
+    fi
+    ;;
   sync)
     "$0" bridge
     "$0" watcher
     "$0" webhook
     "$0" live-preview
     "$0" html-render
+    "$0" canvas-export
+    "$0" source-watcher
     ;;
   stop-sync)
     echo ""
     echo "━━━ Stopping sync services ━━━━━━━━━━━━━━━━━━━━━━━━━"
-    for pidfile in /tmp/penpot-bridge.pid /tmp/portfolio-watcher.pid /tmp/webhook-server.pid /tmp/live-preview.pid /tmp/canvas-to-html.pid; do
+    for pidfile in /tmp/penpot-bridge.pid /tmp/portfolio-watcher.pid /tmp/webhook-server.pid /tmp/live-preview.pid /tmp/canvas-to-html.pid /tmp/canvas-to-portfolio-server.pid /tmp/source-to-canvas-watcher.pid; do
       if [ -f "$pidfile" ]; then
         pid=$(cat "$pidfile")
         if [[ -z "$pid" || ! "$pid" =~ ^[0-9]+$ ]]; then
@@ -132,10 +160,18 @@ case "$TARGET" in
   all)          start_penpot ;;
   *)
     echo "Unknown target: $TARGET"
-    echo "Usage: $0 [penpot|portfolio|bridge|watcher|webhook|live-preview|html-render|sync|stop-sync|screenshots|all]"
+    echo "Usage: $0 [penpot|portfolio|bridge|watcher|webhook|live-preview|html-render|canvas-export|source-watcher|sync|stop-sync|screenshots|all]"
     exit 1
     ;;
 esac
+
+canvas_sync_status() {
+  if curl -s --max-time 2 http://127.0.0.1:9007/healthz >/dev/null 2>&1; then
+    echo "up"
+  else
+    echo "down"
+  fi
+}
 
 echo ""
 echo "━━━ Status ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -143,6 +179,8 @@ echo "  Penpot         → http://localhost:9001"
 echo "  Portfolio      → http://localhost:4321"
 echo "  Bridge status  → http://localhost:9002/"
 echo "  HTML render    → http://localhost:9006/"
+echo "  Canvas sync    → http://localhost:9007/healthz   [$(canvas_sync_status)]"
+echo "  Snapshots      → http://localhost:9007/snapshots  (POST /snapshots/restore {id} to roll back)"
 echo "  Webhook        → http://localhost:9090/status"
 echo "  Tunnel (opt)   → cloudflared tunnel --url http://localhost:9090"
 echo ""
