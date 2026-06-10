@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Antigravity IDE</title>
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --panel: #252525;
+      --panel-hover: #2c2c2c;
+      --panel-active: #3a3146;
+      --border: #3a3a3a;
+      --accent: #b692f6;
+      --text: #e8e8e8;
+      --muted: #8a8a8a;
+      --status-bg: #181818;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.45 -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      overflow: hidden;
+    }
+
+    /* ---------------- layout ------------------------------------------- */
+    body {
+      display: grid;
+      grid-template-columns: 220px 1fr 360px;
+      grid-template-rows: 1fr 320px 24px;
+      grid-template-areas:
+        "tree editor chat"
+        "tree canvas chat"
+        "status status status";
+      gap: 1px;
+      background: var(--border); /* shows through as 1px grid lines */
+    }
+    body.hide-tree   { grid-template-columns: 0 1fr 360px; }
+    body.hide-chat   { grid-template-columns: 220px 1fr 0; }
+    body.hide-tree.hide-chat { grid-template-columns: 0 1fr 0; }
+    body.hide-canvas { grid-template-rows: 1fr 0 24px; }
+
+    .pane { background: var(--panel); overflow: hidden; min-width: 0; min-height: 0; }
+    .file-tree { grid-area: tree; display: flex; flex-direction: column; }
+    .editor    { grid-area: editor; display: flex; flex-direction: column; }
+    .canvas    { grid-area: canvas; display: flex; flex-direction: column; }
+    .chat      { grid-area: chat;   display: flex; flex-direction: column; }
+    .status    { grid-area: status; background: var(--status-bg); border-top: 1px solid var(--border); padding: 4px 10px; font-size: 11px; color: var(--muted); display: flex; gap: 14px; align-items: center; }
+    body.hide-tree   .file-tree,
+    body.hide-chat   .chat,
+    body.hide-canvas .canvas { display: none; }
+
+    /* ---------------- pane header -------------------------------------- */
+    .pane-header {
+      flex: 0 0 auto;
+      padding: 6px 10px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      background: #1f1f1f;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .pane-header button {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .pane-header button:hover { background: var(--panel-hover); border-color: var(--accent); }
+    .pane-body { flex: 1 1 auto; overflow: auto; }
+
+    /* ---------------- file tree ---------------------------------------- */
+    .tree-list { list-style: none; margin: 0; padding: 4px 0; }
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 12.5px;
+      height: 28px;
+      user-select: none;
+    }
+    .tree-item:hover { background: var(--panel-hover); }
+    .tree-item.active { background: var(--panel-active); color: var(--text); }
+    .tree-item .glyph { width: 14px; opacity: 0.8; text-align: center; }
+    .tree-empty { padding: 10px; color: var(--muted); font-style: italic; font-size: 12px; }
+
+    /* ---------------- editor body -------------------------------------- */
+    .editor-frame, .canvas-frame, .chat-frame {
+      flex: 1 1 auto;
+      border: 0;
+      width: 100%;
+      background: var(--bg);
+    }
+    .editor-inline {
+      flex: 1 1 auto;
+      overflow: auto;
+      padding: 12px 16px;
+      font: 12.5px/1.55 "SF Mono", Menlo, Consolas, monospace;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .editor-empty {
+      padding: 18px;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ---------------- status bar --------------------------------------- */
+    .status .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #555; display: inline-block;
+    }
+    .status .dot.ok   { background: #6ad28a; }
+    .status .dot.warn { background: #d2b06a; }
+    .status .dot.err  { background: #d26a6a; }
+    .status .spacer { flex: 1; }
+    .status .accent { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <!-- File tree -->
+  <aside class="pane file-tree">
+    <div class="pane-header">
+      <span>Markups</span>
+      <span style="display:flex; gap:4px;">
+        <button id="btn-refresh" title="Refresh">&#x21bb;</button>
+        <button id="btn-new" title="New Markup">+ New</button>
+      </span>
+    </div>
+    <div class="pane-body">
+      <ul class="tree-list" id="tree-list">
+        <li class="tree-empty">Loading…</li>
+      </ul>
+    </div>
+  </aside>
+
+  <!-- Editor (plugin iframe, falls back to inline file viewer when a tree item is selected) -->
+  <main class="pane editor">
+    <div class="pane-header">
+      <span id="editor-label">Editor</span>
+      <span style="display:flex; gap:4px;">
+        <button id="btn-show-plugin" title="Show full plugin UI">Plugin</button>
+        <button id="btn-save" title="Save active markup (Cmd+S)">Save</button>
+      </span>
+    </div>
+    <iframe class="editor-frame" id="editor-frame" src="http://localhost:9010/agent-plugin/index.html"></iframe>
+    <div class="editor-inline" id="editor-inline" style="display:none;"></div>
+  </main>
+
+  <!-- Chat (same plugin iframe duplicate disabled — see TODO; for v1 we render a placeholder + link) -->
+  <aside class="pane chat">
+    <div class="pane-header">
+      <span>Agent Chat</span>
+      <span id="chat-state" class="accent">via Editor pane</span>
+    </div>
+    <div class="pane-body" style="padding: 14px; color: var(--muted); font-size: 12.5px; line-height: 1.55;">
+      <p><strong style="color: var(--text);">v1 note:</strong> the agent chat lives inside the
+         <span class="accent">Editor</span> iframe (same WebSocket bridge as in Penpot).</p>
+      <p>Spawning a second copy here would compete for the bridge connection on <code>localhost:9010/ws</code>.</p>
+      <p>Toggle this pane via <kbd>Cmd</kbd>+<kbd>/</kbd> when you need more room for the editor.</p>
+      <hr style="border: none; border-top: 1px solid var(--border); margin: 14px 0;" />
+      <p><strong style="color: var(--text);">TODO (v2):</strong> postMessage glue so this pane mirrors the editor's chat panel, or use multi-webview-children so both panes share one plugin process.</p>
+    </div>
+  </aside>
+
+  <!-- Canvas (Penpot iframe) -->
+  <section class="pane canvas">
+    <div class="pane-header">
+      <span>Penpot Canvas</span>
+      <span style="display:flex; gap:4px;">
+        <button id="btn-reload-canvas" title="Reload canvas">&#x21bb;</button>
+        <button id="btn-canvas-fullscreen" title="Open canvas in browser">Open ↗</button>
+      </span>
+    </div>
+    <iframe class="canvas-frame" id="canvas-frame" src="http://localhost:9001/auto-login.html"></iframe>
+  </section>
+
+  <!-- Status bar -->
+  <footer class="status">
+    <span><span id="status-dot" class="dot"></span> <span id="status-text">Booting…</span></span>
+    <span class="spacer"></span>
+    <span id="status-active">No file selected</span>
+    <span>Antigravity IDE v0.1</span>
+  </footer>
+
+  <script>
+    // ----- Tauri bridge (graceful no-op in plain-browser preview) ----------
+    const TAURI = (typeof window !== 'undefined') && window.__TAURI__;
+    const invoke = TAURI ? TAURI.core.invoke : async () => { throw new Error('not in Tauri'); };
+    const listen = TAURI ? TAURI.event.listen : async () => () => {};
+
+    // ----- state -----------------------------------------------------------
+    let markups = [];
+    let activeFile = null;
+    let activeDirty = false;
+
+    // ----- helpers ---------------------------------------------------------
+    function setStatus(text, kind) {
+      document.getElementById('status-text').textContent = text;
+      const dot = document.getElementById('status-dot');
+      dot.className = 'dot ' + (kind || '');
+    }
+    function setActive(label) {
+      document.getElementById('status-active').textContent = label || 'No file selected';
+    }
+    async function log(level, message) {
+      try { await invoke('agent_log', { level, message }); }
+      catch (_) { /* not in Tauri */ }
+    }
+
+    // ----- file tree -------------------------------------------------------
+    async function refreshTree() {
+      const list = document.getElementById('tree-list');
+      list.innerHTML = '<li class="tree-empty">Loading…</li>';
+      try {
+        markups = await invoke('list_markups');
+      } catch (e) {
+        list.innerHTML = '<li class="tree-empty">Tauri commands unavailable<br/>(' + String(e) + ')</li>';
+        setStatus('list_markups failed', 'err');
+        return;
+      }
+      if (!markups.length) {
+        list.innerHTML = '<li class="tree-empty">No markups yet.<br/>Click <strong>+ New</strong> to create one.</li>';
+        setStatus('Ready — 0 markups', 'ok');
+        return;
+      }
+      list.innerHTML = '';
+      for (const name of markups) {
+        const li = document.createElement('li');
+        li.className = 'tree-item' + (name === activeFile ? ' active' : '');
+        li.innerHTML = '<span class="glyph">&#128196;</span><span></span>';
+        li.querySelector('span:last-child').textContent = name;
+        li.addEventListener('click', () => openFile(name));
+        list.appendChild(li);
+      }
+      setStatus('Ready — ' + markups.length + ' markup(s)', 'ok');
+    }
+
+    async function openFile(name) {
+      activeFile = name;
+      try {
+        const content = await invoke('read_markup', { name });
+        const ed = document.getElementById('editor-inline');
+        const frame = document.getElementById('editor-frame');
+        ed.textContent = content;
+        ed.style.display = 'block';
+        frame.style.display = 'none';
+        document.getElementById('editor-label').textContent = 'Editor — ' + name;
+        setActive(name);
+        log('info', 'opened ' + name);
+        await refreshTree();
+      } catch (e) {
+        setStatus('read_markup failed: ' + e, 'err');
+      }
+    }
+
+    function showPlugin() {
+      activeFile = null;
+      document.getElementById('editor-inline').style.display = 'none';
+      document.getElementById('editor-frame').style.display = '';
+      document.getElementById('editor-label').textContent = 'Editor';
+      setActive('plugin UI');
+      refreshTree();
+    }
+
+    async function newMarkup() {
+      const raw = window.prompt('New markup filename (e.g. home.md):', 'untitled-' + Date.now() + '.md');
+      if (!raw) return;
+      const name = raw.trim();
+      if (!name || /[\\/]/.test(name) || name.startsWith('.')) {
+        alert('Invalid filename: no slashes, no leading dot.');
+        return;
+      }
+      try {
+        await invoke('write_markup', { name, content: '# ' + name + '\n\n' });
+        await openFile(name);
+      } catch (e) {
+        setStatus('write_markup failed: ' + e, 'err');
+      }
+    }
+
+    async function saveActive() {
+      if (!activeFile) {
+        setStatus('Nothing to save — pick a file in the tree first', 'warn');
+        return;
+      }
+      const text = document.getElementById('editor-inline').textContent;
+      try {
+        await invoke('write_markup', { name: activeFile, content: text });
+        setStatus('Saved ' + activeFile, 'ok');
+        log('info', 'saved ' + activeFile);
+      } catch (e) {
+        setStatus('save failed: ' + e, 'err');
+      }
+    }
+
+    // ----- pane toggles ----------------------------------------------------
+    function togglePane(which) {
+      const cls = 'hide-' + which;
+      document.body.classList.toggle(cls);
+    }
+
+    // ----- canvas helpers --------------------------------------------------
+    function reloadCanvas() {
+      const f = document.getElementById('canvas-frame');
+      f.src = f.src; // eslint-disable-line no-self-assign
+    }
+    async function canvasOpenExternal() {
+      try { await invoke('open_external', { url: 'http://localhost:9001/' }); }
+      catch (_) { window.open('http://localhost:9001/', '_blank'); }
+    }
+
+    // ----- Tauri event wiring ---------------------------------------------
+    async function wireMenu() {
+      if (!TAURI) return;
+      await listen('menu-new-markup',     () => newMarkup());
+      await listen('menu-save',           () => saveActive());
+      await listen('menu-save-all',       () => saveActive()); // v1 = same as save
+      await listen('menu-open-workspace', () => canvasOpenExternal());
+      await listen('toggle-pane',         (e) => togglePane(e.payload));
+      await listen('agent-start',         () => setStatus('agent: start (TODO)', 'warn'));
+      await listen('agent-stop',          () => setStatus('agent: stop (TODO)', 'warn'));
+      await listen('show-about',          () => alert('Antigravity IDE v0.1 — native desktop shell for Penpot + agent markup editor + chat.'));
+      await listen('agent-log',           (e) => {
+        const p = e.payload || {};
+        setStatus('[' + (p.level || 'log') + '] ' + (p.message || ''),
+                  p.level === 'error' ? 'err' : (p.level === 'warn' ? 'warn' : 'ok'));
+      });
+      await listen('open-penpot', (e) => {
+        const p = e.payload || {};
+        if (p.project_id && p.file_id) {
+          const url = 'http://localhost:9001/#/workspace/' + p.project_id + '/' + p.file_id;
+          document.getElementById('canvas-frame').src = url;
+          setStatus('Navigated canvas to file ' + p.file_id, 'ok');
+        }
+      });
+    }
+
+    // ----- boot ------------------------------------------------------------
+    document.getElementById('btn-refresh').addEventListener('click', refreshTree);
+    document.getElementById('btn-new').addEventListener('click', newMarkup);
+    document.getElementById('btn-save').addEventListener('click', saveActive);
+    document.getElementById('btn-show-plugin').addEventListener('click', showPlugin);
+    document.getElementById('btn-reload-canvas').addEventListener('click', reloadCanvas);
+    document.getElementById('btn-canvas-fullscreen').addEventListener('click', canvasOpenExternal);
+
+    (async () => {
+      setStatus(TAURI ? 'Tauri OK — connecting to backend…' : 'Browser preview (no Tauri)', TAURI ? 'ok' : 'warn');
+      await wireMenu();
+      await refreshTree();
+    })();
+  </script>
+</body>
+</html>
