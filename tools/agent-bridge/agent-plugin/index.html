@@ -346,6 +346,90 @@ button,input,textarea{font:inherit;color:inherit}
 .proxy.disconnected .plabel{color:#ff6b6b}
 .proxy.reconnecting .pdot{background:#ffb86b}
 .proxy.reconnecting .plabel{color:#ffb86b}
+
+/* ── Phase 6 Inline Write (Cmd+I) ──
+   A single shared popover used from both the markup textarea and the chat
+   input. Positioned absolutely against <body> at coordinates computed from
+   the originating selection (markup mode) or input rect (chat mode).
+   role="dialog", aria-modal="false" — it's a popover, not a modal: a click
+   outside or Esc dismisses it and returns focus to the source field. */
+.cmdi-hint{
+  display:inline-flex;align-items:center;gap:4px;
+  color:#666;font-size:10.5px;letter-spacing:.02em;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  user-select:none;
+}
+.cmdi-hint kbd{
+  background:#1a1a1a;border:1px solid #2a2a2a;border-bottom-width:2px;
+  border-radius:3px;padding:0 4px;font-size:10px;color:#9a9a9a;
+  font-family:inherit;line-height:1.4;
+}
+.cmdi-panel{
+  position:absolute;z-index:2000;
+  width:min(440px,92vw);
+  background:#252525;border:1px solid #3a3a3a;border-radius:6px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+  display:flex;flex-direction:column;gap:6px;
+  padding:8px 10px;
+  font-size:12.5px;color:#e8e8e8;
+}
+.cmdi-panel[hidden]{display:none}
+.cmdi-panel .cmdi-row{
+  display:flex;align-items:center;gap:6px;
+}
+.cmdi-panel .cmdi-label{
+  font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+  color:#b692f6;font-weight:600;flex:0 0 auto;
+}
+.cmdi-panel .cmdi-mode-pill{
+  font-size:10px;color:#9a9a9a;background:#1a1a1a;
+  border:1px solid #2a2a2a;border-radius:10px;
+  padding:0 6px;flex:0 0 auto;line-height:1.6;
+}
+.cmdi-panel .cmdi-spacer{flex:1 1 auto}
+.cmdi-panel .cmdi-esc{
+  font-size:10px;color:#666;flex:0 0 auto;
+}
+.cmdi-panel .cmdi-esc kbd{
+  background:#1a1a1a;border:1px solid #2a2a2a;border-bottom-width:2px;
+  border-radius:3px;padding:0 4px;font-size:10px;color:#9a9a9a;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+.cmdi-panel textarea.cmdi-input{
+  width:100%;min-height:54px;max-height:160px;resize:vertical;
+  background:#161616;color:#e8e8e8;border:1px solid #2a2a2a;border-radius:4px;
+  padding:6px 8px;
+  font-family:inherit;font-size:12.5px;line-height:1.45;
+}
+.cmdi-panel textarea.cmdi-input::placeholder{color:#555}
+.cmdi-panel textarea.cmdi-input:disabled{opacity:.5;cursor:not-allowed}
+.cmdi-panel select.cmdi-model{
+  background:#1e1e1e;color:#e8e8e8;border:1px solid #3a3a3a;border-radius:3px;
+  padding:2px 6px;font-size:11px;max-width:200px;flex:0 0 auto;
+}
+.cmdi-panel select.cmdi-model:disabled{opacity:.5;cursor:not-allowed}
+.cmdi-panel .cmdi-send{
+  background:#b692f6;color:#1a1126;border:none;border-radius:4px;
+  padding:4px 12px;cursor:pointer;font-size:12px;font-weight:600;
+  flex:0 0 auto;
+}
+.cmdi-panel .cmdi-send:hover:not(:disabled){background:#c8aaff}
+.cmdi-panel .cmdi-send:disabled{opacity:.4;cursor:not-allowed}
+.cmdi-panel .cmdi-status{
+  font-size:11px;color:#888;min-height:14px;line-height:1.3;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+.cmdi-panel .cmdi-status.thinking{color:#a89bc4}
+.cmdi-panel .cmdi-status.error{color:#ff6b6b}
+.cmdi-panel .cmdi-status .spinner{
+  display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:#b692f6;margin-right:6px;vertical-align:middle;
+  animation:cmdi-pulse 1s ease-in-out infinite;
+}
+@keyframes cmdi-pulse{
+  0%,100%{opacity:.3;transform:scale(.8)}
+  50%    {opacity:1; transform:scale(1.1)}
+}
 </style>
 </head>
 <body>
@@ -360,6 +444,8 @@ button,input,textarea{font:inherit;color:inherit}
       <span id="ms-state" class="ok">ready</span>
       <span class="dot">&middot;</span>
       <span id="ms-detail">type to compile</span>
+      <span class="dot" style="margin-left:auto">&middot;</span>
+      <span class="cmdi-hint" title="Press to rewrite the current selection (or line) with AI"><kbd>⌘I</kbd> to write</span>
     </div>
     <label for="markup-area" class="sr-only" id="markup-title">Markup DSL editor</label>
     <div class="markup-editor">
@@ -1781,6 +1867,433 @@ function friendlyFetchError(e) {
 setMode(loadString(MODE_KEY, 'chat'));
 renderAll();
 checkHealth();
+</script>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<!-- Phase 6 Inline Write (Cmd+I) — Cursor-style AI rewrites for the -->
+<!-- markup textarea AND the chat input. Shares newcore's /chat      -->
+<!-- endpoint (same contract as Phase 4). Independent of Phase 4's   -->
+<!-- conversation log: rewrites are inline, not chat turns.          -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<script type="module">
+'use strict';
+
+/* ── Phase 6 Inline Write (Cmd+I) ── */
+
+const NEWCORE_BASE = 'http://localhost:3777';
+const CMDI_MODEL_KEY = 'agent-bridge-chat:v1:cmdi-model';
+const CHAT_MODEL_KEY = 'agent-bridge-chat:v1:model';
+
+// Source-of-truth elements we hook into.
+const $markupArea = document.getElementById('markup-area');
+const $chatInput  = document.getElementById('agent-input');
+const $chatModel  = document.getElementById('agent-model');
+
+// One shared panel reused for both markup and chat modes. We build it once,
+// then re-position/re-parameterize on each open.
+const panel = document.createElement('div');
+panel.className = 'cmdi-panel';
+panel.setAttribute('role', 'dialog');
+panel.setAttribute('aria-modal', 'false');
+panel.setAttribute('aria-label', 'Inline AI write');
+panel.hidden = true;
+panel.innerHTML = `
+  <div class="cmdi-row">
+    <span class="cmdi-label">Cmd+I</span>
+    <span class="cmdi-mode-pill" id="cmdi-mode-pill">markup</span>
+    <span class="cmdi-spacer"></span>
+    <label class="sr-only" for="cmdi-model">Model</label>
+    <select class="cmdi-model" id="cmdi-model" aria-label="Model selection">
+      <option value="">(loading…)</option>
+    </select>
+    <span class="cmdi-esc"><kbd>Esc</kbd></span>
+  </div>
+  <textarea class="cmdi-input" id="cmdi-input" rows="2"
+    placeholder="Write or edit DSL…"
+    autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+  <div class="cmdi-row">
+    <span class="cmdi-status" id="cmdi-status"></span>
+    <span class="cmdi-spacer"></span>
+    <button type="button" class="cmdi-send" id="cmdi-send"
+      title="Send (Cmd+Enter)">Send</button>
+  </div>
+`;
+document.body.appendChild(panel);
+
+const $cmdiModePill = panel.querySelector('#cmdi-mode-pill');
+const $cmdiModel    = panel.querySelector('#cmdi-model');
+const $cmdiInput    = panel.querySelector('#cmdi-input');
+const $cmdiSend     = panel.querySelector('#cmdi-send');
+const $cmdiStatus   = panel.querySelector('#cmdi-status');
+
+// ── State ──
+let cmdiOpen = false;
+let cmdiMode = null;        // 'markup' | 'chat'
+let cmdiSource = null;      // the textarea we opened from
+let cmdiSelStart = 0;       // captured selection at open time
+let cmdiSelEnd = 0;
+let cmdiContext = '';       // the text that will be rewritten
+let cmdiAbort = null;
+let cmdiLastFocus = null;
+
+// ── Model dropdown ──
+// Mirror the chat pane's <select id="agent-model"> options. We re-sync on
+// every open so newly-discovered models (claude-cli/*, litellm/*, etc.) flow
+// through automatically. Persist our own last-pick under CMDI_MODEL_KEY so
+// the user's Cmd+I model can differ from their chat model.
+function syncCmdiModels() {
+  const current = $cmdiModel.value;
+  $cmdiModel.innerHTML = '';
+  const opts = Array.from($chatModel.options);
+  if (!opts.length || ($chatModel.disabled && (!opts[0] || !opts[0].value))) {
+    const o = document.createElement('option');
+    o.value = '';
+    o.textContent = $chatModel.disabled ? '(no models — newcore offline?)' : '(loading…)';
+    $cmdiModel.appendChild(o);
+    $cmdiModel.disabled = true;
+    return;
+  }
+  for (const opt of opts) {
+    if (!opt.value) continue; // skip placeholder rows
+    const o = document.createElement('option');
+    o.value = opt.value;
+    o.textContent = opt.textContent;
+    $cmdiModel.appendChild(o);
+  }
+  $cmdiModel.disabled = false;
+
+  // Picking order: remembered cmdi-model → previously-displayed value → chat
+  // pane's current selection → first option.
+  let remembered = '';
+  try { remembered = localStorage.getItem(CMDI_MODEL_KEY) || ''; } catch {}
+  const available = Array.from($cmdiModel.options).map(o => o.value);
+  let pick = '';
+  if (remembered && available.includes(remembered)) pick = remembered;
+  else if (current && available.includes(current))  pick = current;
+  else if ($chatModel.value && available.includes($chatModel.value)) pick = $chatModel.value;
+  else pick = available[0] || '';
+  $cmdiModel.value = pick;
+}
+
+// Save user's pick whenever it changes.
+$cmdiModel.addEventListener('change', () => {
+  try { localStorage.setItem(CMDI_MODEL_KEY, $cmdiModel.value); } catch {}
+});
+
+// If the chat pane just (re-)populated its dropdown, mirror that change
+// silently. We watch via MutationObserver because Phase 4 doesn't expose an
+// "models loaded" event.
+const modelObserver = new MutationObserver(() => {
+  if (cmdiOpen) syncCmdiModels();
+});
+modelObserver.observe($chatModel, { childList: true, attributes: true, attributeFilter: ['disabled'] });
+
+// ── System prompts ──
+// Kept as functions so the system message + context + instruction become a
+// single string for /chat (which accepts {model, message}).
+function buildMarkupPrompt(context, instruction) {
+  return [
+    'SYSTEM: You are an inline-edit assistant for the Antigravity Bridge DSL.',
+    'Reply ONLY with the rewritten/inserted text. NO prose, NO markdown fences, NO commentary.',
+    'The DSL uses \\page, \\board name (x,y,w,h) {...}, \\rect, \\ellipse, \\text, \\group, \\bind, \\anchor.',
+    'Selected text follows below; rewrite it per the user instruction.',
+    '',
+    'CONTEXT (selected):',
+    context,
+    '',
+    'INSTRUCTION:',
+    instruction,
+  ].join('\n');
+}
+function buildChatPrompt(context, instruction) {
+  return [
+    'SYSTEM: You are rewriting a draft chat message. Reply ONLY with the rewritten draft. No quotes, no prose, no commentary.',
+    '',
+    'DRAFT:',
+    context,
+    '',
+    'INSTRUCTION:',
+    instruction,
+  ].join('\n');
+}
+
+// ── Geometry helpers ──
+// Position the panel below the source's selection (markup) or above the
+// chat input. Clamps to viewport so it never escapes the iframe.
+function positionPanelForMarkup() {
+  // Anchor below the textarea (we can't measure the exact caret y without a
+  // mirror element, so we anchor under the textarea's visible top edge plus
+  // the cursor line's approximate y. Best-effort positioning is fine — this
+  // is a popover, not a precision tooltip.)
+  const rect = $markupArea.getBoundingClientRect();
+  // Try to position near the caret line.
+  const cs = window.getComputedStyle($markupArea);
+  const lineH = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) * 1.5) || 18;
+  const padTop = parseFloat(cs.paddingTop) || 0;
+  const valBefore = $markupArea.value.slice(0, cmdiSelEnd);
+  const lineIdx = (valBefore.match(/\n/g) || []).length;
+  const yInTextarea = padTop + lineIdx * lineH - $markupArea.scrollTop + lineH;
+  // Absolute Y on the page (body is the offset parent).
+  let top = rect.top + window.scrollY + yInTextarea + 6;
+  let left = rect.left + window.scrollX + 24;
+  // Clamp horizontally to viewport.
+  const panelW = panel.offsetWidth || 440;
+  const vw = document.documentElement.clientWidth;
+  if (left + panelW > vw - 8) left = Math.max(8, vw - panelW - 8);
+  if (left < 8) left = 8;
+  // Clamp vertically — if there's no room below, anchor above the textarea.
+  const panelH = panel.offsetHeight || 140;
+  const vh = document.documentElement.clientHeight;
+  if (top + panelH > window.scrollY + vh - 8) {
+    top = rect.top + window.scrollY + Math.max(8, yInTextarea - panelH - 24);
+  }
+  panel.style.top = top + 'px';
+  panel.style.left = left + 'px';
+}
+function positionPanelForChat() {
+  const rect = $chatInput.getBoundingClientRect();
+  const panelW = panel.offsetWidth || 440;
+  const panelH = panel.offsetHeight || 140;
+  const vw = document.documentElement.clientWidth;
+  let left = rect.left + window.scrollX;
+  if (left + panelW > vw - 8) left = Math.max(8, vw - panelW - 8);
+  if (left < 8) left = 8;
+  // Prefer placing the panel ABOVE the chat input so it doesn't cover the
+  // textarea the user is typing into.
+  let top = rect.top + window.scrollY - panelH - 6;
+  if (top < window.scrollY + 8) {
+    // Not enough room above → place below the input.
+    top = rect.bottom + window.scrollY + 6;
+  }
+  panel.style.top = top + 'px';
+  panel.style.left = left + 'px';
+}
+
+// ── Open / close ──
+function openCmdi(mode) {
+  if (cmdiOpen) return;
+  cmdiMode = mode;
+  cmdiOpen = true;
+  cmdiLastFocus = document.activeElement;
+
+  if (mode === 'markup') {
+    cmdiSource = $markupArea;
+    $cmdiModePill.textContent = 'markup';
+    $cmdiInput.placeholder = 'Write or edit DSL…';
+    cmdiSelStart = $markupArea.selectionStart;
+    cmdiSelEnd   = $markupArea.selectionEnd;
+    if (cmdiSelStart === cmdiSelEnd) {
+      // Nothing selected → expand to the current line.
+      const v = $markupArea.value;
+      const lineStart = v.lastIndexOf('\n', cmdiSelStart - 1) + 1;
+      let lineEnd = v.indexOf('\n', cmdiSelStart);
+      if (lineEnd < 0) lineEnd = v.length;
+      cmdiSelStart = lineStart;
+      cmdiSelEnd = lineEnd;
+    }
+    cmdiContext = $markupArea.value.slice(cmdiSelStart, cmdiSelEnd);
+  } else {
+    cmdiSource = $chatInput;
+    $cmdiModePill.textContent = 'chat';
+    $cmdiInput.placeholder = 'Refine this draft…';
+    cmdiContext = $chatInput.value || '';
+  }
+
+  syncCmdiModels();
+  $cmdiInput.value = '';
+  $cmdiStatus.textContent = '';
+  $cmdiStatus.className = 'cmdi-status';
+  $cmdiSend.disabled = false;
+
+  panel.hidden = false;
+  // Position AFTER it's been laid out so offsetWidth/Height are real.
+  // Two-pass: render hidden first to get dimensions, then position.
+  if (mode === 'markup') positionPanelForMarkup();
+  else                   positionPanelForChat();
+  // Focus the instruction box.
+  setTimeout(() => $cmdiInput.focus(), 0);
+}
+
+function closeCmdi(restoreFocus) {
+  if (!cmdiOpen) return;
+  cmdiOpen = false;
+  panel.hidden = true;
+  if (cmdiAbort) {
+    try { cmdiAbort.abort(); } catch {}
+    cmdiAbort = null;
+  }
+  $cmdiStatus.textContent = '';
+  $cmdiStatus.className = 'cmdi-status';
+  if (restoreFocus !== false) {
+    const tgt = cmdiLastFocus || cmdiSource;
+    if (tgt && typeof tgt.focus === 'function') {
+      try { tgt.focus(); } catch {}
+    }
+  }
+  cmdiMode = null;
+  cmdiSource = null;
+  cmdiLastFocus = null;
+}
+
+// ── Send ──
+async function sendCmdi() {
+  if (!cmdiOpen) return;
+  const instruction = ($cmdiInput.value || '').trim();
+  if (!instruction) {
+    $cmdiStatus.className = 'cmdi-status error';
+    $cmdiStatus.textContent = 'Enter an instruction first.';
+    return;
+  }
+  const model = $cmdiModel.value;
+  if (!model) {
+    $cmdiStatus.className = 'cmdi-status error';
+    $cmdiStatus.textContent = 'No model selected (is newcore reachable on :3777?).';
+    return;
+  }
+
+  const message = (cmdiMode === 'markup')
+    ? buildMarkupPrompt(cmdiContext, instruction)
+    : buildChatPrompt(cmdiContext, instruction);
+
+  $cmdiSend.disabled = true;
+  $cmdiInput.disabled = true;
+  $cmdiStatus.className = 'cmdi-status thinking';
+  $cmdiStatus.innerHTML = '<span class="spinner"></span>thinking…';
+
+  cmdiAbort = new AbortController();
+  let resp;
+  try {
+    const r = await fetch(NEWCORE_BASE + '/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, message }),
+      signal: cmdiAbort.signal,
+    });
+    if (!r.ok) {
+      let detail = 'HTTP ' + r.status;
+      try { const j = await r.json(); detail += ' — ' + (j.error || JSON.stringify(j)); } catch {}
+      throw new Error(detail);
+    }
+    resp = await r.json();
+  } catch (e) {
+    if (e && e.name === 'AbortError') {
+      $cmdiStatus.className = 'cmdi-status';
+      $cmdiStatus.textContent = '(cancelled)';
+    } else {
+      const msg = (e && e.message) || String(e);
+      const friendly = /failed to fetch|networkerror|load failed/i.test(msg)
+        ? 'newcore not reachable at :3777 — is it running?'
+        : msg;
+      $cmdiStatus.className = 'cmdi-status error';
+      $cmdiStatus.textContent = friendly;
+    }
+    $cmdiSend.disabled = false;
+    $cmdiInput.disabled = false;
+    cmdiAbort = null;
+    return;
+  }
+  cmdiAbort = null;
+
+  // Persist the user's model pick on first successful send too.
+  try { localStorage.setItem(CMDI_MODEL_KEY, model); } catch {}
+
+  const out = (resp && typeof resp.content === 'string') ? resp.content : '';
+  if (!out) {
+    $cmdiStatus.className = 'cmdi-status error';
+    $cmdiStatus.textContent = 'Empty response from model.';
+    $cmdiSend.disabled = false;
+    $cmdiInput.disabled = false;
+    return;
+  }
+
+  applyCmdiResult(out);
+  closeCmdi(true);
+}
+
+// Apply the rewritten text back into the originating field.
+function applyCmdiResult(text) {
+  if (cmdiMode === 'markup') {
+    // Replace [cmdiSelStart, cmdiSelEnd] with text. If the original
+    // selection was empty (we expanded to the line), we still REPLACE the
+    // expanded range — that's intuitive: "rewrite this line" gives a new
+    // line, not appending to it.
+    const v = $markupArea.value;
+    const before = v.slice(0, cmdiSelStart);
+    const after  = v.slice(cmdiSelEnd);
+    $markupArea.value = before + text + after;
+    // Place caret at the end of the inserted text.
+    const caret = (before + text).length;
+    try { $markupArea.setSelectionRange(caret, caret); } catch {}
+    // Trigger the Phase 2 compile pipeline via the standard input event.
+    $markupArea.dispatchEvent(new Event('input', { bubbles: true }));
+  } else if (cmdiMode === 'chat') {
+    $chatInput.value = text;
+    try {
+      const caret = text.length;
+      $chatInput.setSelectionRange(caret, caret);
+    } catch {}
+    $chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+// ── Wiring ──
+$cmdiSend.addEventListener('click', sendCmdi);
+
+$cmdiInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeCmdi(true);
+    return;
+  }
+  // Cmd+Enter / Ctrl+Enter → send. Plain Enter → newline (default).
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    sendCmdi();
+  }
+});
+
+// Cmd+I trigger on markup textarea.
+$markupArea.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'i' || e.key === 'I')) {
+    e.preventDefault();
+    openCmdi('markup');
+  }
+});
+
+// Cmd+I trigger on chat input.
+$chatInput.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'i' || e.key === 'I')) {
+    e.preventDefault();
+    openCmdi('chat');
+  }
+});
+
+// Close on click outside the panel. We do NOT close when clicking inside the
+// originating textarea — selection changes should be allowed without losing
+// the in-progress instruction. But clicking anywhere else dismisses.
+document.addEventListener('mousedown', (e) => {
+  if (!cmdiOpen) return;
+  if (panel.contains(e.target)) return;
+  if (cmdiSource && cmdiSource.contains(e.target)) return;
+  closeCmdi(false);
+});
+
+// Reposition on window resize so the panel doesn't drift offscreen.
+window.addEventListener('resize', () => {
+  if (!cmdiOpen) return;
+  if (cmdiMode === 'markup') positionPanelForMarkup();
+  else                       positionPanelForChat();
+});
+
+// One-time placeholder hint for the chat input when it's empty. We append
+// the hint to the *existing* placeholder rather than overwriting it so the
+// Phase 4 "Cmd+Enter to send" guidance is preserved.
+(function annotateChatPlaceholder() {
+  const base = $chatInput.getAttribute('placeholder') || '';
+  if (!/cmd\+i/i.test(base)) {
+    $chatInput.setAttribute('placeholder', base + '   (⌘I to rewrite)');
+  }
+})();
 </script>
 </body>
 </html>
