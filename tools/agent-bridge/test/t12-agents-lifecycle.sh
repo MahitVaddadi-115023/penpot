@@ -10,11 +10,15 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 echo "${BOLD}T12 — newcore agent lifecycle${NC}"
 
 # ── Create agent ──
+# Pin to mock-default. The deployment's defaultModel may be a real LLM
+# (e.g. groq-llama-8b via the LiteLLM gateway), which adds 10-40s to
+# planning and breaks the 'mock should be fast' assertion below. This
+# test is about lifecycle plumbing, not real-LLM quality — that's T13.
 t0=$(python3 -c 'import time; print(time.time())')
 create=$(curl -sS -X POST "$NEWCORE_URL/agents" \
   -H 'Content-Type: application/json' \
   --max-time 10 \
-  -d '{"task":"echo hello world"}')
+  -d '{"task":"echo hello world","model":"mock-default"}')
 echo "  create: $(echo "$create" | head -c 200)"
 
 agent_id=$(echo "$create" | python3 -c '
