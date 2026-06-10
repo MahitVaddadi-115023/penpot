@@ -677,6 +677,37 @@ window.addEventListener('message', (ev) => {
   }
 });
 
+/* ── Tauri IDE companion ───────────────────────────────────────────────
+   When this plugin runs inside the Antigravity Tauri IDE shell (NOT in
+   Penpot), the host page drives the markup textarea via two postMessage
+   types so the file tree can load files into the editor and so Cmd+S in
+   the host can persist whatever's in this textarea.
+
+   No-op when running inside Penpot — the host never sends these messages.
+   Additive only: does not interfere with the sandbox bridge above. */
+window.addEventListener('message', (ev) => {
+  const d = ev.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.type === 'load-markup' && typeof d.content === 'string') {
+    const taEl = document.getElementById('markup-area');
+    if (taEl) {
+      taEl.value = d.content;
+      taEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  } else if (d.type === 'save-markup-request') {
+    const taEl = document.getElementById('markup-area');
+    if (taEl) {
+      try {
+        window.parent.postMessage({
+          type: 'save-markup-response',
+          filename: (d && typeof d.filename === 'string') ? d.filename : null,
+          content: taEl.value,
+        }, '*');
+      } catch (_) { /* host went away — ignore */ }
+    }
+  }
+});
+
 // ---- bridge: iframe -> sandbox -----------------------------------------
 function sendToSandbox(type, content) {
   const msg = { type: type, content: content };

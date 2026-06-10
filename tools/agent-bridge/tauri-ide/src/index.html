@@ -67,7 +67,7 @@
       justify-content: space-between;
       gap: 6px;
     }
-    .pane-header button {
+    .pane-header button, .pane-header select {
       background: transparent;
       border: 1px solid var(--border);
       color: var(--text);
@@ -97,26 +97,99 @@
     .tree-empty { padding: 10px; color: var(--muted); font-style: italic; font-size: 12px; }
 
     /* ---------------- editor body -------------------------------------- */
-    .editor-frame, .canvas-frame, .chat-frame {
+    .editor-frame, .canvas-frame {
       flex: 1 1 auto;
       border: 0;
       width: 100%;
       background: var(--bg);
     }
-    .editor-inline {
+
+    /* ---------------- chat pane ---------------------------------------- */
+    .chat-log {
       flex: 1 1 auto;
-      overflow: auto;
-      padding: 12px 16px;
-      font: 12.5px/1.55 "SF Mono", Menlo, Consolas, monospace;
-      color: var(--text);
-      white-space: pre-wrap;
-      word-break: break-word;
+      overflow-y: auto;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
-    .editor-empty {
-      padding: 18px;
+    .chat-empty {
       color: var(--muted);
       font-style: italic;
+      font-size: 12.5px;
+      padding: 12px 4px;
     }
+    .bubble {
+      max-width: 92%;
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      border: 1px solid var(--border);
+    }
+    .bubble.user      { align-self: flex-end; background: #2e2740; border-color: #4a3a6e; color: #efe6ff; }
+    .bubble.assistant { align-self: flex-start; background: #1f1f1f; color: var(--text); }
+    .bubble.system    { align-self: center; background: transparent; border: 0; color: var(--muted); font-style: italic; font-size: 11.5px; max-width: 100%; }
+    .bubble.error     { align-self: flex-start; background: #3a1f1f; border-color: #6e3a3a; color: #ffb4b4; }
+    .bubble .role-tag {
+      display: block; font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--muted); margin-bottom: 2px;
+    }
+
+    .chat-composer {
+      flex: 0 0 auto;
+      border-top: 1px solid var(--border);
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: #1f1f1f;
+    }
+    .chat-composer .row {
+      display: flex; gap: 6px; align-items: center;
+    }
+    .chat-composer select {
+      flex: 1 1 auto;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 3px 6px;
+      font-size: 12px;
+    }
+    .chat-composer textarea {
+      width: 100%;
+      min-height: 56px;
+      max-height: 200px;
+      resize: vertical;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 8px;
+      font: 12.5px/1.45 -apple-system, "SF Pro Text", system-ui, sans-serif;
+    }
+    .chat-composer textarea:focus { outline: none; border-color: var(--accent); }
+    .chat-composer .actions { display: flex; gap: 6px; justify-content: flex-end; }
+    .chat-composer button {
+      background: var(--accent);
+      color: #1c1428;
+      border: 0;
+      border-radius: 4px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .chat-composer button.secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      font-weight: 500;
+    }
+    .chat-composer button:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* ---------------- status bar --------------------------------------- */
     .status .dot {
@@ -128,6 +201,50 @@
     .status .dot.err  { background: #d26a6a; }
     .status .spacer { flex: 1; }
     .status .accent { color: var(--accent); }
+
+    /* ---------------- modal -------------------------------------------- */
+    .modal-bg {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal-bg.show { display: flex; }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      width: 460px;
+      max-width: 90vw;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+    .modal h3 {
+      margin: 0 0 10px; font-size: 14px; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .modal label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-top: 8px; }
+    .modal textarea, .modal input, .modal select {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 8px;
+      margin-top: 4px;
+      font: 12.5px/1.45 -apple-system, "SF Pro Text", system-ui, sans-serif;
+    }
+    .modal textarea { min-height: 80px; resize: vertical; }
+    .modal .actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 14px; }
+    .modal button {
+      background: var(--accent); color: #1c1428; border: 0; border-radius: 4px;
+      padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .modal button.secondary {
+      background: transparent; color: var(--text); border: 1px solid var(--border); font-weight: 500;
+    }
   </style>
 </head>
 <body>
@@ -147,7 +264,9 @@
     </div>
   </aside>
 
-  <!-- Editor (plugin iframe, falls back to inline file viewer when a tree item is selected) -->
+  <!-- Editor (plugin iframe). The plugin owns the markup textarea; we drive it
+       via postMessage (load-markup / save-markup-request) — see the
+       "Tauri IDE companion" listener in agent-plugin/index.html. -->
   <main class="pane editor">
     <div class="pane-header">
       <span id="editor-label">Editor</span>
@@ -157,22 +276,29 @@
       </span>
     </div>
     <iframe class="editor-frame" id="editor-frame" src="http://localhost:9010/agent-plugin/index.html"></iframe>
-    <div class="editor-inline" id="editor-inline" style="display:none;"></div>
   </main>
 
-  <!-- Chat (same plugin iframe duplicate disabled — see TODO; for v1 we render a placeholder + link) -->
+  <!-- Chat — talks directly to newcore (:3777), independent of the editor's
+       chat panel. Avoids a second WS-bridge consumer (the editor iframe
+       still owns the WebSocket to localhost:9010/ws). -->
   <aside class="pane chat">
     <div class="pane-header">
       <span>Agent Chat</span>
-      <span id="chat-state" class="accent">via Editor pane</span>
+      <span id="chat-state" class="accent">disconnected</span>
     </div>
-    <div class="pane-body" style="padding: 14px; color: var(--muted); font-size: 12.5px; line-height: 1.55;">
-      <p><strong style="color: var(--text);">v1 note:</strong> the agent chat lives inside the
-         <span class="accent">Editor</span> iframe (same WebSocket bridge as in Penpot).</p>
-      <p>Spawning a second copy here would compete for the bridge connection on <code>localhost:9010/ws</code>.</p>
-      <p>Toggle this pane via <kbd>Cmd</kbd>+<kbd>/</kbd> when you need more room for the editor.</p>
-      <hr style="border: none; border-top: 1px solid var(--border); margin: 14px 0;" />
-      <p><strong style="color: var(--text);">TODO (v2):</strong> postMessage glue so this pane mirrors the editor's chat panel, or use multi-webview-children so both panes share one plugin process.</p>
+    <div class="chat-log" id="chat-log">
+      <div class="chat-empty" id="chat-empty">Talk to newcore. Pick a model and send a message.</div>
+    </div>
+    <div class="chat-composer">
+      <div class="row">
+        <select id="chat-model" disabled><option value="">(loading models…)</option></select>
+        <button class="secondary" id="chat-retry" title="Reload models">&#x21bb;</button>
+      </div>
+      <textarea id="chat-input" placeholder="Message newcore… (Cmd+Enter to send)"></textarea>
+      <div class="actions">
+        <button class="secondary" id="chat-clear">Clear</button>
+        <button id="chat-send" disabled>Send</button>
+      </div>
     </div>
   </aside>
 
@@ -192,9 +318,25 @@
   <footer class="status">
     <span><span id="status-dot" class="dot"></span> <span id="status-text">Booting…</span></span>
     <span class="spacer"></span>
+    <span id="agent-state" class="accent" style="display:none;">agent: idle</span>
     <span id="status-active">No file selected</span>
-    <span>Antigravity IDE v0.1</span>
+    <span>Antigravity IDE v0.2</span>
   </footer>
+
+  <!-- Agent Start modal -->
+  <div class="modal-bg" id="agent-modal">
+    <div class="modal">
+      <h3>Start Agent</h3>
+      <label for="agent-task">Task</label>
+      <textarea id="agent-task" placeholder="Describe what the agent should do (e.g. 'list shapes on the current page and report counts')"></textarea>
+      <label for="agent-model">Model (optional — newcore will default if blank)</label>
+      <select id="agent-model"><option value="">(default)</option></select>
+      <div class="actions">
+        <button class="secondary" id="agent-cancel">Cancel</button>
+        <button id="agent-launch">Launch</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     // ----- Tauri bridge (graceful no-op in plain-browser preview) ----------
@@ -202,28 +344,88 @@
     const invoke = TAURI ? TAURI.core.invoke : async () => { throw new Error('not in Tauri'); };
     const listen = TAURI ? TAURI.event.listen : async () => () => {};
 
+    // ----- constants -------------------------------------------------------
+    const NEWCORE_BASE = 'http://localhost:3777';
+    const AGENT_POLL_MS = 500;
+    const AGENT_POLL_TIMEOUT_MS = 5 * 60 * 1000;
+
     // ----- state -----------------------------------------------------------
     let markups = [];
     let activeFile = null;
-    let activeDirty = false;
+    let saveResolver = null;     // resolves with the plugin's save-markup-response
+    let chatModels = [];
+    let chatInFlight = false;
+    let agentPollId = null;
+    let agentPollTimer = null;
+    let agentPollStartedAt = 0;
 
     // ----- helpers ---------------------------------------------------------
+    const $ = (id) => document.getElementById(id);
+
     function setStatus(text, kind) {
-      document.getElementById('status-text').textContent = text;
-      const dot = document.getElementById('status-dot');
-      dot.className = 'dot ' + (kind || '');
+      $('status-text').textContent = text;
+      $('status-dot').className = 'dot ' + (kind || '');
     }
     function setActive(label) {
-      document.getElementById('status-active').textContent = label || 'No file selected';
+      $('status-active').textContent = label || 'No file selected';
     }
-    async function log(level, message) {
+    function setAgentState(text, kind) {
+      const el = $('agent-state');
+      if (!text) { el.style.display = 'none'; return; }
+      el.style.display = '';
+      el.textContent = 'agent: ' + text;
+      el.style.color = (kind === 'err') ? '#d26a6a' : (kind === 'ok' ? '#6ad28a' : '');
+    }
+    async function emitLog(level, message) {
       try { await invoke('agent_log', { level, message }); }
       catch (_) { /* not in Tauri */ }
     }
 
+    // ----- editor iframe postMessage --------------------------------------
+    function postToEditor(msg) {
+      const frame = $('editor-frame');
+      if (frame && frame.contentWindow) {
+        try { frame.contentWindow.postMessage(msg, '*'); } catch (_) { /* ignore */ }
+      }
+    }
+
+    // Save flow: we ask the plugin for its current markup-area content via
+    // postMessage. The plugin replies asynchronously via parent postMessage
+    // with { type: 'save-markup-response', filename, content }.
+    function requestSaveFromEditor(filename, timeoutMs) {
+      return new Promise((resolve, reject) => {
+        // If someone is already waiting, abandon them (stale) — we only
+        // care about the freshest save request.
+        if (saveResolver) {
+          try { saveResolver({ filename: null, content: null, stale: true }); } catch (_) {}
+          saveResolver = null;
+        }
+        const to = setTimeout(() => {
+          if (saveResolver) {
+            saveResolver = null;
+            reject(new Error('save-markup-response timeout (is the plugin iframe loaded?)'));
+          }
+        }, timeoutMs || 2000);
+        saveResolver = (payload) => {
+          clearTimeout(to);
+          saveResolver = null;
+          resolve(payload);
+        };
+        postToEditor({ type: 'save-markup-request', filename: filename });
+      });
+    }
+
+    window.addEventListener('message', (ev) => {
+      const d = ev.data;
+      if (!d || typeof d !== 'object') return;
+      if (d.type === 'save-markup-response') {
+        if (saveResolver) saveResolver({ filename: d.filename, content: d.content });
+      }
+    });
+
     // ----- file tree -------------------------------------------------------
     async function refreshTree() {
-      const list = document.getElementById('tree-list');
+      const list = $('tree-list');
       list.innerHTML = '<li class="tree-empty">Loading…</li>';
       try {
         markups = await invoke('list_markups');
@@ -250,17 +452,16 @@
     }
 
     async function openFile(name) {
-      activeFile = name;
       try {
         const content = await invoke('read_markup', { name });
-        const ed = document.getElementById('editor-inline');
-        const frame = document.getElementById('editor-frame');
-        ed.textContent = content;
-        ed.style.display = 'block';
-        frame.style.display = 'none';
-        document.getElementById('editor-label').textContent = 'Editor — ' + name;
+        activeFile = name;
+        // Drive the plugin's #markup-area via postMessage (Tauri IDE companion
+        // listener). Falls back gracefully: if the plugin isn't loaded yet,
+        // the message is dropped and the user can re-click.
+        postToEditor({ type: 'load-markup', content: content });
+        $('editor-label').textContent = 'Editor — ' + name;
         setActive(name);
-        log('info', 'opened ' + name);
+        emitLog('info', 'opened ' + name);
         await refreshTree();
       } catch (e) {
         setStatus('read_markup failed: ' + e, 'err');
@@ -269,9 +470,7 @@
 
     function showPlugin() {
       activeFile = null;
-      document.getElementById('editor-inline').style.display = 'none';
-      document.getElementById('editor-frame').style.display = '';
-      document.getElementById('editor-label').textContent = 'Editor';
+      $('editor-label').textContent = 'Editor';
       setActive('plugin UI');
       refreshTree();
     }
@@ -285,7 +484,8 @@
         return;
       }
       try {
-        await invoke('write_markup', { name, content: '# ' + name + '\n\n' });
+        const seed = '# ' + name + '\n\n';
+        await invoke('write_markup', { name, content: seed });
         await openFile(name);
       } catch (e) {
         setStatus('write_markup failed: ' + e, 'err');
@@ -297,11 +497,21 @@
         setStatus('Nothing to save — pick a file in the tree first', 'warn');
         return;
       }
-      const text = document.getElementById('editor-inline').textContent;
+      let payload;
       try {
-        await invoke('write_markup', { name: activeFile, content: text });
-        setStatus('Saved ' + activeFile, 'ok');
-        log('info', 'saved ' + activeFile);
+        payload = await requestSaveFromEditor(activeFile, 2000);
+      } catch (e) {
+        setStatus('save failed: ' + e.message, 'err');
+        return;
+      }
+      if (!payload || typeof payload.content !== 'string') {
+        setStatus('save failed: empty response from editor', 'err');
+        return;
+      }
+      try {
+        await invoke('write_markup', { name: activeFile, content: payload.content });
+        setStatus('Saved ' + activeFile + ' (' + payload.content.length + ' chars)', 'ok');
+        emitLog('info', 'saved ' + activeFile);
       } catch (e) {
         setStatus('save failed: ' + e, 'err');
       }
@@ -309,13 +519,12 @@
 
     // ----- pane toggles ----------------------------------------------------
     function togglePane(which) {
-      const cls = 'hide-' + which;
-      document.body.classList.toggle(cls);
+      document.body.classList.toggle('hide-' + which);
     }
 
     // ----- canvas helpers --------------------------------------------------
     function reloadCanvas() {
-      const f = document.getElementById('canvas-frame');
+      const f = $('canvas-frame');
       f.src = f.src; // eslint-disable-line no-self-assign
     }
     async function canvasOpenExternal() {
@@ -323,17 +532,245 @@
       catch (_) { window.open('http://localhost:9001/', '_blank'); }
     }
 
+    // ----- chat (host page → newcore) -------------------------------------
+    function chatAppend(role, text, opts) {
+      const empty = $('chat-empty');
+      if (empty) empty.remove();
+      const div = document.createElement('div');
+      div.className = 'bubble ' + role;
+      if (opts && opts.label) {
+        const tag = document.createElement('span');
+        tag.className = 'role-tag';
+        tag.textContent = opts.label;
+        div.appendChild(tag);
+        const body = document.createElement('span');
+        body.textContent = text;
+        div.appendChild(body);
+      } else {
+        div.textContent = text;
+      }
+      const logEl = $('chat-log');
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+      return div;
+    }
+
+    function chatSetState(text, kind) {
+      const el = $('chat-state');
+      el.textContent = text;
+      el.style.color = (kind === 'err') ? '#d26a6a' : (kind === 'ok' ? '#6ad28a' : '');
+    }
+
+    function chatSetSendEnabled(enabled) {
+      $('chat-send').disabled = !enabled || chatInFlight;
+    }
+
+    async function chatLoadModels() {
+      const sel = $('chat-model');
+      const agentSel = $('agent-model');
+      sel.disabled = true;
+      sel.innerHTML = '<option value="">(loading models…)</option>';
+      try {
+        const r = await fetch(NEWCORE_BASE + '/info');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        chatModels = Array.isArray(j && j.models) ? j.models : [];
+        sel.innerHTML = '';
+        agentSel.innerHTML = '<option value="">(default)</option>';
+        if (!chatModels.length) {
+          const o = document.createElement('option');
+          o.value = ''; o.textContent = '(no models)';
+          sel.appendChild(o);
+          chatSetState('no models', 'err');
+          chatSetSendEnabled(false);
+          return;
+        }
+        for (const m of chatModels) {
+          const label = m.name ? (m.id + ' — ' + m.name) : m.id;
+          const o = document.createElement('option');
+          o.value = m.id; o.textContent = label;
+          sel.appendChild(o);
+          const o2 = document.createElement('option');
+          o2.value = m.id; o2.textContent = label;
+          agentSel.appendChild(o2);
+        }
+        // Prefer mock-default if present.
+        const ids = chatModels.map(m => m.id);
+        sel.value = ids.includes('mock-default') ? 'mock-default' : ids[0];
+        sel.disabled = false;
+        chatSetState('connected', 'ok');
+        chatSetSendEnabled(true);
+      } catch (e) {
+        sel.innerHTML = '<option value="">(failed to load)</option>';
+        chatSetState('newcore unreachable', 'err');
+        chatSetSendEnabled(false);
+      }
+    }
+
+    async function chatSend() {
+      if (chatInFlight) return;
+      const text = $('chat-input').value.trim();
+      if (!text) return;
+      const model = $('chat-model').value;
+      if (!model) { chatAppend('error', 'Pick a model first.'); return; }
+      chatAppend('user', text, { label: 'you' });
+      $('chat-input').value = '';
+      chatInFlight = true;
+      chatSetSendEnabled(false);
+      const pending = chatAppend('system', '…thinking');
+      try {
+        const r = await fetch(NEWCORE_BASE + '/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, message: text }),
+        });
+        if (!r.ok) {
+          let detail = 'HTTP ' + r.status;
+          try { const j = await r.json(); detail += ' — ' + (j.error || JSON.stringify(j)); } catch (_) {}
+          pending.remove();
+          chatAppend('error', detail);
+          return;
+        }
+        const j = await r.json();
+        const content = (j && typeof j.content === 'string') ? j.content : JSON.stringify(j);
+        const usage = j && j.usage;
+        const tail = usage ? ('\n\n— ' + (usage.totalTokens || 0) + ' tokens') : '';
+        pending.remove();
+        chatAppend('assistant', content + tail, { label: (j && j.model) || model });
+      } catch (e) {
+        pending.remove();
+        chatAppend('error', 'fetch failed: ' + (e && e.message || String(e)));
+      } finally {
+        chatInFlight = false;
+        chatSetSendEnabled(true);
+        $('chat-input').focus();
+      }
+    }
+
+    function chatClear() {
+      const logEl = $('chat-log');
+      logEl.innerHTML = '';
+      const empty = document.createElement('div');
+      empty.className = 'chat-empty';
+      empty.id = 'chat-empty';
+      empty.textContent = 'Talk to newcore. Pick a model and send a message.';
+      logEl.appendChild(empty);
+    }
+
+    // ----- agent (Agent menu) ---------------------------------------------
+    function showAgentModal() {
+      $('agent-task').value = '';
+      $('agent-modal').classList.add('show');
+      setTimeout(() => $('agent-task').focus(), 30);
+    }
+    function hideAgentModal() {
+      $('agent-modal').classList.remove('show');
+    }
+
+    async function agentLaunch() {
+      const task = $('agent-task').value.trim();
+      if (!task) { $('agent-task').focus(); return; }
+      const model = $('agent-model').value;
+      hideAgentModal();
+      setAgentState('spawning…');
+      try {
+        const r = await fetch(NEWCORE_BASE + '/agents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(model ? { task, model } : { task }),
+        });
+        if (!r.ok) {
+          let detail = 'HTTP ' + r.status;
+          try { const j = await r.json(); detail += ' — ' + (j.error || ''); } catch (_) {}
+          setAgentState('spawn failed: ' + detail, 'err');
+          chatAppend('error', 'agent spawn failed: ' + detail);
+          return;
+        }
+        const resp = await r.json();
+        if (!resp || !resp.id) {
+          setAgentState('no id returned', 'err');
+          chatAppend('error', 'agent spawned without id: ' + JSON.stringify(resp));
+          return;
+        }
+        agentPollId = resp.id;
+        agentPollStartedAt = Date.now();
+        chatAppend('system', 'spawned agent ' + resp.id + ' — polling every ' + AGENT_POLL_MS + 'ms');
+        setAgentState('polling ' + resp.id.slice(0, 8) + '…');
+        schedulePoll();
+      } catch (e) {
+        setAgentState('spawn failed', 'err');
+        chatAppend('error', 'agent fetch failed: ' + (e && e.message || String(e)));
+      }
+    }
+
+    function schedulePoll() {
+      if (agentPollTimer) clearTimeout(agentPollTimer);
+      agentPollTimer = setTimeout(pollAgentOnce, AGENT_POLL_MS);
+    }
+
+    async function pollAgentOnce() {
+      if (!agentPollId) return;
+      const id = agentPollId;
+      if (Date.now() - agentPollStartedAt > AGENT_POLL_TIMEOUT_MS) {
+        setAgentState('poll timeout', 'err');
+        chatAppend('error', 'agent ' + id + ' poll timed out (continues server-side)');
+        agentPollId = null;
+        return;
+      }
+      try {
+        const r = await fetch(NEWCORE_BASE + '/agents/' + encodeURIComponent(id));
+        if (!r.ok) {
+          setAgentState('poll HTTP ' + r.status, 'err');
+          chatAppend('error', 'agent poll failed: HTTP ' + r.status);
+          agentPollId = null;
+          return;
+        }
+        const s = await r.json();
+        const state = (s && s.status && s.status.state) || s.state || 'unknown';
+        const step = (s && s.status && s.status.currentStep) || 0;
+        const total = (s && s.status && s.status.totalSteps) || 0;
+        const progress = total ? (step + '/' + total) : ('step ' + step);
+        const kind = (state === 'completed') ? 'ok' : (state === 'failed' ? 'err' : '');
+        setAgentState(state + ' · ' + progress, kind);
+        if (state === 'completed' || state === 'failed') {
+          const detail = (s && s.result && (s.result.summary || s.result.error)) || '';
+          chatAppend(state === 'completed' ? 'assistant' : 'error',
+                     'agent ' + id + ' ' + state + (detail ? ('\n\n' + detail) : ''),
+                     { label: 'agent' });
+          agentPollId = null;
+          return;
+        }
+        schedulePoll();
+      } catch (e) {
+        setAgentState('poll error', 'err');
+        chatAppend('error', 'agent poll error: ' + (e && e.message || String(e)));
+        agentPollId = null;
+      }
+    }
+
+    function agentStop() {
+      if (!agentPollId) {
+        setAgentState('idle');
+        return;
+      }
+      const id = agentPollId;
+      agentPollId = null;
+      if (agentPollTimer) { clearTimeout(agentPollTimer); agentPollTimer = null; }
+      setAgentState('polling stopped (run continues server-side)');
+      chatAppend('system', 'stopped polling agent ' + id + ' — newcore has no /agents/:id/cancel yet');
+    }
+
     // ----- Tauri event wiring ---------------------------------------------
     async function wireMenu() {
       if (!TAURI) return;
       await listen('menu-new-markup',     () => newMarkup());
       await listen('menu-save',           () => saveActive());
-      await listen('menu-save-all',       () => saveActive()); // v1 = same as save
+      await listen('menu-save-all',       () => saveActive()); // v2 = same as save (single open file)
       await listen('menu-open-workspace', () => canvasOpenExternal());
       await listen('toggle-pane',         (e) => togglePane(e.payload));
-      await listen('agent-start',         () => setStatus('agent: start (TODO)', 'warn'));
-      await listen('agent-stop',          () => setStatus('agent: stop (TODO)', 'warn'));
-      await listen('show-about',          () => alert('Antigravity IDE v0.1 — native desktop shell for Penpot + agent markup editor + chat.'));
+      await listen('agent-start',         () => showAgentModal());
+      await listen('agent-stop',          () => agentStop());
+      await listen('show-about',          () => alert('Antigravity IDE v0.2 — native desktop shell for Penpot + agent markup editor + chat.'));
       await listen('agent-log',           (e) => {
         const p = e.payload || {};
         setStatus('[' + (p.level || 'log') + '] ' + (p.message || ''),
@@ -343,24 +780,44 @@
         const p = e.payload || {};
         if (p.project_id && p.file_id) {
           const url = 'http://localhost:9001/#/workspace/' + p.project_id + '/' + p.file_id;
-          document.getElementById('canvas-frame').src = url;
+          $('canvas-frame').src = url;
           setStatus('Navigated canvas to file ' + p.file_id, 'ok');
         }
       });
     }
 
     // ----- boot ------------------------------------------------------------
-    document.getElementById('btn-refresh').addEventListener('click', refreshTree);
-    document.getElementById('btn-new').addEventListener('click', newMarkup);
-    document.getElementById('btn-save').addEventListener('click', saveActive);
-    document.getElementById('btn-show-plugin').addEventListener('click', showPlugin);
-    document.getElementById('btn-reload-canvas').addEventListener('click', reloadCanvas);
-    document.getElementById('btn-canvas-fullscreen').addEventListener('click', canvasOpenExternal);
+    $('btn-refresh').addEventListener('click', refreshTree);
+    $('btn-new').addEventListener('click', newMarkup);
+    $('btn-save').addEventListener('click', saveActive);
+    $('btn-show-plugin').addEventListener('click', showPlugin);
+    $('btn-reload-canvas').addEventListener('click', reloadCanvas);
+    $('btn-canvas-fullscreen').addEventListener('click', canvasOpenExternal);
+
+    $('chat-send').addEventListener('click', chatSend);
+    $('chat-clear').addEventListener('click', chatClear);
+    $('chat-retry').addEventListener('click', chatLoadModels);
+    $('chat-input').addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        chatSend();
+      }
+    });
+
+    $('agent-cancel').addEventListener('click', hideAgentModal);
+    $('agent-launch').addEventListener('click', agentLaunch);
+    $('agent-modal').addEventListener('click', (e) => {
+      if (e.target === $('agent-modal')) hideAgentModal();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && $('agent-modal').classList.contains('show')) hideAgentModal();
+    });
 
     (async () => {
       setStatus(TAURI ? 'Tauri OK — connecting to backend…' : 'Browser preview (no Tauri)', TAURI ? 'ok' : 'warn');
       await wireMenu();
       await refreshTree();
+      chatLoadModels();
     })();
   </script>
 </body>
