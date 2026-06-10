@@ -1129,7 +1129,11 @@ function applyUnifiedDiff(text, patch) {
 function openWS() {
   setProxyState('reconnecting', 'reconnecting');
   try {
-    ws = new WebSocket('ws://' + location.host + '/ws');
+    // When running inside the Tauri plugin-wrapper, `location.host` is `tauri.localhost`
+    // (not `localhost:9010`), so the dev-server WS would be unreachable. Detect Tauri
+    // and hardcode the dev-server origin in that case.
+    var wsHost = (typeof window !== 'undefined' && window.__TAURI__) ? 'localhost:9010' : location.host;
+    ws = new WebSocket('ws://' + wsHost + '/ws');
   } catch (e) {
     append('err', 'ws-open-fail', e && e.message);
     scheduleReconnect();
