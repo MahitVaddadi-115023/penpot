@@ -16,6 +16,7 @@
    [app.main.router :as rt]
    [app.main.store :as st]
    [app.main.ui.icons :as deprecated-icon]
+   [app.main.ui.workspace.autosave-status :refer [autosave-status*]]
    [app.main.ui.workspace.main-menu :as main-menu]
    [app.util.dom :as dom]
    [app.util.i18n :as i18n :refer [tr]]
@@ -128,7 +129,8 @@
             :saved deprecated-icon/status-tick
             :error deprecated-icon/status-wrong
             nil)]
-         [:div {:class (stl/css :file-name-label)} file-name]])]
+         [:div {:class (stl/css :file-name-label)} file-name]
+         [:> autosave-status* {}]])]
      (when ^boolean shared?
        [:span {:class (stl/css :shared-badge)} deprecated-icon/library])
      [:div {:class (stl/css :menu-section)}

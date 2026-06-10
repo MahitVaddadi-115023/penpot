@@ -117,8 +117,32 @@
 
 (defonce ongoing-tasks (l/atom #{}))
 
+(defn- has-pending-persistence?
+  []
+  (let [pq (get @state :persistence/queue)]
+    (boolean (and pq (seq pq)))))
+
 (add-watch ongoing-tasks ::ongoing-tasks
            (fn [_ _ _ events]
-             (if (empty? events)
+             (if (and (empty? events) (not (has-pending-persistence?)))
                (obj/set! js/window "onbeforeunload" nil)
                (obj/set! js/window "onbeforeunload" (constantly false)))))
+
+;; pagehide backstop: force-persist pending commits and best-effort beacon.
+(defonce ^:private pagehide-installed?
+  (do
+    (try
+      (.addEventListener js/window "pagehide"
+                         (fn [_]
+                           (try
+                             (emit! :app.main.data.persistence/force-persist)
+                             (catch :default _e nil))
+                           (try
+                             (let [pq (get @state :persistence/queue)]
+                               (when (and pq (seq pq) (exists? js/navigator.sendBeacon))
+                                 (let [payload (js/JSON.stringify (clj->js {:queue (vec pq)}))
+                                       blob    (js/Blob. #js [payload] #js {:type "application/json"})]
+                                   (js/navigator.sendBeacon "/api/rpc/command/update-file-beacon" blob))))
+                             (catch :default _e nil))))
+      (catch :default _e nil))
+    true))

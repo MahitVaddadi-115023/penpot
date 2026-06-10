@@ -241,6 +241,9 @@
     (mf/with-effect [team-id file-id]
       (st/emit! (dw/initialize-workspace team-id file-id))
       (fn []
+        ;; NOTE: The `pagehide` listener installed in app.main.store provides
+        ;; an additional backstop (via navigator.sendBeacon) for the unload
+        ;; path, in case this React cleanup does not run in time.
         (st/emit! ::dps/force-persist
                   (dw/finalize-workspace team-id file-id))))
 

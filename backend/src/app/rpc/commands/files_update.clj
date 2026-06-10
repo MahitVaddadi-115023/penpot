@@ -484,3 +484,63 @@
                            :revn (:revn file)
                            :modified-at (ct/now)
                            :changes lchanges}))))
+
+
+;; --- COMMAND: update-file-beacon
+;;
+;; Best-effort, fire-and-forget endpoint invoked from the browser via
+;; `navigator.sendBeacon` during `pagehide`. Wraps each commit in its own
+;; try/catch so a single bad commit does not kill the batch; dedupes by
+;; `:commit-id`; silently skips stale `:revn` mismatches.
+
+(def ^:private schema:update-file-beacon
+  [:map {:title "update-file-beacon"}
+   [:queue {:optional true}
+    [:vector
+     [:map
+      [:commit-id {:optional true} ::sm/uuid]
+      [:file-id {:optional true} ::sm/uuid]
+      [:session-id {:optional true} ::sm/uuid]
+      [:revn {:optional true} ::sm/int]
+      [:vern {:optional true} ::sm/int]
+      [:changes {:optional true} [:vector cpc/schema:change]]]]]])
+
+(defn- update-file-beacon-one!
+  [cfg profile-id commit]
+  (try
+    (let [file-id    (:file-id commit)
+          file       (get-file cfg file-id)
+          stored-revn (:revn file)
+          incoming   (:revn commit)]
+      (when (and file-id file
+                 (or (nil? incoming)
+                     (>= incoming stored-revn)))
+        (files/check-edition-permissions! (::db/conn cfg) profile-id file-id)
+        (update-file cfg
+                     (-> commit
+                         (assoc :id file-id
+                                :profile-id profile-id
+                                :file file
+                                :changes (vec (:changes commit)))))))
+    (catch Throwable cause
+      (l/wrn :hint "update-file-beacon: commit skipped"
+             :commit-id (some-> (:commit-id commit) str)
+             :cause-type (some-> cause ex-data :type)
+             :cause-msg (.getMessage cause))
+      nil)))
+
+(sv/defmethod ::update-file-beacon
+  {::doc/module :files
+   ::doc/added "1.17"
+   ::sm/params schema:update-file-beacon
+   ::db/transaction true}
+  [{:keys [::db/conn] :as cfg}
+   {:keys [::rpc/profile-id queue] :as _params}]
+  (let [seen (volatile! #{})
+        commits (vec (or queue []))]
+    (doseq [commit commits]
+      (let [cid (:commit-id commit)]
+        (when (and cid (not (contains? @seen cid)))
+          (vswap! seen conj cid)
+          (update-file-beacon-one! cfg profile-id commit))))
+    {:accepted (count commits)}))

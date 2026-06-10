@@ -12,6 +12,7 @@
    [app.common.uuid :as uuid]
    [app.main.data.changes :as dch]
    [app.main.data.helpers :as dsh]
+   [app.main.data.notifications :as notif]
    [app.main.repo :as rp]
    [beicon.v2.core :as rx]
    [potok.v2.core :as ptk]))
@@ -19,6 +20,11 @@
 (declare ^:private run-persistence-task)
 
 (log/set-level! :warn)
+
+(def MAX-RETRIES 3)
+(def RETRY-DELAYS-MS [500 2000 8000])
+(defn- hard-error? [cause]
+  (contains? #{:validation :not-found :restriction} (:type cause)))
 
 (def running (atom false))
 (def revn-data (atom {}))
@@ -132,13 +138,30 @@
                                      (update-file-revn file-id revn))))
 
                  (rx/catch (fn [cause]
-                             (rx/concat
-                              (if (= :authentication (:type cause))
-                                (rx/empty)
-                                (rx/of (ptk/data-event ::error cause)
-                                       (update-status :error)))
-                              (rx/of (discard-persistence-state))
-                              (rx/throw cause)))))))))))
+                             (let [auth?      (= :authentication (:type cause))
+                                   hard?      (hard-error? cause)
+                                   retries    (get-in state [:persistence :retries commit-id] 0)
+                                   can-retry? (and (not auth?) (not hard?) (< retries MAX-RETRIES))]
+                               (cond
+                                 auth?
+                                 (rx/of (notif/error "Session expired. Please log in again.")
+                                        (ptk/data-event ::session-lost cause)
+                                        (discard-persistence-state)
+                                        (update-status :error))
+
+                                 can-retry?
+                                 (rx/concat
+                                  (rx/of (update-status :pending)
+                                         (ptk/data-event ::retry {:commit-id commit-id :attempt (inc retries) :cause cause}))
+                                  (rx/timer (nth RETRY-DELAYS-MS retries))
+                                  (rx/of (run-persistence-task)))
+
+                                 :else
+                                 (rx/concat
+                                  (rx/of (ptk/data-event ::error cause)
+                                         (update-status :error)
+                                         (discard-persistence-state))
+                                  (rx/throw cause)))))))))))))
 
 
 (defn- run-persistence-task

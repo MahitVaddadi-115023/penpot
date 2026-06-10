@@ -9971,3 +9971,30 @@ msgstr "Autosaved versions will be kept for %s days."
 #, unused
 msgid "workspace.viewport.click-to-close-path"
 msgstr "Click to close the path"
+
+msgid "workspace.autosave.saving"
+msgstr "Saving…"
+
+msgid "workspace.autosave.unsaved"
+msgstr "Unsaved changes"
+
+msgid "workspace.autosave.saved-just-now"
+msgstr "Saved a few seconds ago"
+
+msgid "workspace.autosave.saved-a-minute-ago"
+msgstr "Saved about a minute ago"
+
+msgid "workspace.autosave.saved-at"
+msgstr "Saved · {{time}}"
+
+msgid "workspace.autosave.error"
+msgstr "Save failed"
+
+msgid "workspace.autosave.error.tooltip"
+msgstr "The last save failed. Click retry to try again."
+
+msgid "workspace.autosave.retry"
+msgstr "retry"
+
+msgid "workspace.autosave.tooltip.autosave-on"
+msgstr "Autosave is on · last save {{time}}"
