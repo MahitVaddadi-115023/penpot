@@ -26,6 +26,18 @@ HOST="${HOST:-127.0.0.1}"
 LOG="/tmp/agent-bridge-dev.log"
 PID_FILE="/tmp/agent-bridge-dev.pid"
 
+# --no-watch disables the auto-reinstall watcher (which keeps the plugin
+# alive across Penpot container restarts). Default ON.
+WATCH=1
+for arg in "$@"; do
+  case "$arg" in
+    --no-watch) WATCH=0 ;;
+    --watch)    WATCH=1 ;;
+  esac
+done
+WATCH_LOG="/tmp/agent-bridge-watch.log"
+WATCH_PID_FILE="/tmp/agent-bridge-watch.pid"
+
 DEV_MANIFEST_URL="http://${HOST}:${PORT}/agent-plugin/manifest.json"
 PENPOT_MANIFEST_URL="http://localhost:9001/plugins/agent-bridge/manifest.json"
 
@@ -98,6 +110,22 @@ else
   echo "[agent-bridge] Penpot frontend container not running — skipping same-origin install."
   echo "             Start Penpot first (e.g. tools/portfolio-sync/penpot-launch.sh),"
   echo "             then re-run this script."
+fi
+
+# ── 3. Auto-reinstall watcher (Penpot Docker restarts wipe docker cp) ───────
+if [ "${WATCH}" = "1" ]; then
+  if pgrep -f "auto-reinstall-watch.sh" >/dev/null 2>&1; then
+    echo "[agent-bridge] auto-reinstall watcher already running — reusing."
+  else
+    nohup bash "${SCRIPT_DIR}/auto-reinstall-watch.sh" \
+      >>"${WATCH_LOG}" 2>&1 &
+    WATCH_PID=$!
+    disown "${WATCH_PID}" 2>/dev/null || true
+    echo "${WATCH_PID}" > "${WATCH_PID_FILE}"
+    echo "[agent-bridge] auto-reinstall watcher started (pid ${WATCH_PID}), log → ${WATCH_LOG}"
+  fi
+else
+  echo "[agent-bridge] --no-watch: not starting reinstall watcher (Penpot restarts will wipe plugin install)."
 fi
 
 print_instructions "${PENPOT_STATUS}"
