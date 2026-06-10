@@ -60,26 +60,28 @@
     const BASE = "http://localhost:9001";
     const API  = BASE + "/api/rpc/command/";
 
-    // Plugins to auto-install. Each entry mirrors the registry shape
-    // produced by app.plugins.register/parse-manifest:
-    //   { plugin-id, name, host, code, permissions, [description], [icon], [url], [version] }
-    // host is the manifest URL with the path stripped — matches the
-    // parse-manifest behaviour for version 1 manifests.
+    // Plugins to auto-install. Each entry mirrors the registry shape produced
+    // by app.plugins.register/parse-manifest. The Penpot common schema
+    // (app.common.types.plugins/schema:registry-entry) requires:
+    //   :plugin-id :string  :name :string  :host :string  :code :string
+    //   :permissions [:set :string]   (optional :description :icon)
+    // `:url` + `:version` are NOT in the registry-entry schema but are
+    // accepted by load-from-store at runtime and used by open-plugin! to
+    // re-fetch the manifest. We include them to match parse-manifest output.
+    //
+    // CRITICAL: :permissions MUST be a Clojure set on the backend side, NOT
+    // a vector. We send the props as application/transit+json with a tagged
+    // ~#set so the backend decodes it correctly; a plain JSON array would
+    // be rejected by `sm/validate` of [:set :string].
+    //
+    // Only ONE plugin is registered: the Portfolio Live Preview served by
+    // tools/portfolio-sync/live-preview-server.mjs on :9005. The previous
+    // "Live Embed" entry pointed at http://localhost:9001/plugins/live-embed/
+    // which is a 404 (stale stub) and caused the workspace plugin list to
+    // surface a broken icon + a failed fetch when the workspace was opened
+    // with ?plugin=<dead URL>. Removed.
     const PLUGINS_TO_INSTALL = [
       {
-        "plugin-id":   "live-embed-portfolio-local",
-        "url":         BASE + "/plugins/live-embed/manifest.json",
-        "version":     1,
-        "name":        "Live Embed",
-        "description": "Overlays a live iframe of localhost:4321 on the design canvas",
-        "host":        BASE,
-        "code":        "plugin.js",
-        "icon":        "icon.svg",
-        "permissions": []
-      },
-      {
-        // Portfolio Live Preview plugin — served by tools/portfolio-sync/live-preview-server.mjs on :9005.
-        // Permissions match live-preview-plugin/manifest.json.
         "plugin-id":   "portfolio-live-preview-local",
         "url":         "http://localhost:9005/manifest.json",
         "version":     2,
@@ -91,10 +93,52 @@
       }
     ];
 
-    // Kept for backward compatibility — first entry is the one we open in the workspace.
-    const LIVE_EMBED = PLUGINS_TO_INSTALL[0];
-
     function sub(msg) { document.getElementById("sub").textContent = msg; }
+
+    // ── Transit-JSON encoder (minimal, for the props payload only) ──────────
+    //
+    // Penpot's backend decodes application/json bodies straight to Clojure
+    // data — JSON arrays become Clojure vectors. The plugin schema requires
+    // `:permissions` to be a Clojure SET. To get there over the wire we send
+    // a transit+json payload where each permissions field is the tagged set
+    // form `["~#set", [...strings]]`. Transit also requires that map keys be
+    // JSON strings, which JSON gives us for free.
+    //
+    // We only need set support here — every other value is a primitive map/
+    // array/string/number/boolean.
+    function transitTagSet(arr) { return ["~#set", arr.slice()]; }
+
+    function encodeTransitValue(v) {
+      if (Array.isArray(v)) return v.map(encodeTransitValue);
+      if (v && typeof v === "object") {
+        const o = {};
+        for (const k of Object.keys(v)) o[k] = encodeTransitValue(v[k]);
+        return o;
+      }
+      return v;
+    }
+
+    // Build the transit+json body for `update-profile-props`. We encode the
+    // plugins registry such that each plugin's :permissions is a tagged set.
+    function buildPropsTransit(props) {
+      const out = {};
+      for (const k of Object.keys(props)) {
+        if (k === "plugins" && props.plugins && props.plugins.data) {
+          const data = {};
+          for (const id of Object.keys(props.plugins.data)) {
+            const entry = { ...props.plugins.data[id] };
+            if (Array.isArray(entry.permissions)) {
+              entry.permissions = transitTagSet(entry.permissions);
+            }
+            data[id] = entry;
+          }
+          out[k] = { ids: props.plugins.ids, data };
+        } else {
+          out[k] = encodeTransitValue(props[k]);
+        }
+      }
+      return out;
+    }
 
     async function rpc(cmd, body) {
       const r = await fetch(API + cmd, {
@@ -105,6 +149,30 @@
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || "HTTP " + r.status); }
       return r.json();
+    }
+
+    // Variant that POSTs application/transit+json so set/keyword semantics
+    // survive the wire. Used exclusively for update-profile-props where the
+    // schema requires Clojure sets. The minimal transit payload we produce
+    // is: top-level JSON map whose values may include tagged-set arrays.
+    async function rpcTransit(cmd, body) {
+      const r = await fetch(API + cmd, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/transit+json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) {
+        let detail = "HTTP " + r.status;
+        try { const e = await r.json(); detail = e.hint || e.message || detail; } catch {}
+        throw new Error(detail);
+      }
+      // 204 No Content is a valid success on this endpoint
+      if (r.status === 204) return null;
+      return r.json().catch(() => null);
     }
 
     (async function autoLogin() {
@@ -148,25 +216,56 @@
           }
         }
 
-        if (anyAdded || !mcpActive) {
+        // Prune any stale entries that this auto-login does NOT manage but
+        // that previously pointed at unreachable URLs (e.g. the old
+        // `live-embed-portfolio-local` stub which 404'd at
+        // /plugins/live-embed/manifest.json and surfaced as a broken plugin
+        // tile in the workspace). We only prune known-bad ids — anything the
+        // user manually installed via the Plugins dialog is left alone.
+        const KNOWN_STALE_IDS = new Set(["live-embed-portfolio-local"]);
+        let prunedAny = false;
+        for (const id of Object.keys(mergedData)) {
+          if (KNOWN_STALE_IDS.has(id)) {
+            delete mergedData[id];
+            const idx = mergedIds.indexOf(id);
+            if (idx !== -1) mergedIds.splice(idx, 1);
+            prunedAny = true;
+            installed.push("− pruned stale " + id);
+          }
+        }
+
+        // Detect legacy entries persisted with array permissions (from earlier
+        // auto-login revisions that posted application/json). Force a rewrite
+        // so the schema-valid set form lands in storage.
+        let hasArrayPermissions = false;
+        for (const id of Object.keys(mergedData)) {
+          if (Array.isArray(mergedData[id]?.permissions)) {
+            hasArrayPermissions = true;
+            break;
+          }
+        }
+
+        if (anyAdded || prunedAny || hasArrayPermissions || !mcpActive) {
           sub("Configuring plugins…");
           const merged = { ids: mergedIds, data: mergedData };
-          await rpc("update-profile-props", {
-            props: { plugins: merged, "mcp-enabled": true }
+          const props = buildPropsTransit({
+            plugins: merged,
+            "mcp-enabled": true
           });
+          await rpcTransit("update-profile-props", { props });
         }
         // Surface registration status on the page for debug visibility.
         console.log("[auto-login] plugin registration:\n" + installed.join("\n"));
 
-        // 4. Done — redirect directly to Portfolio Design workspace with Live Embed open.
-        // Workspace URL format: BASE/?plugin=<url>#/workspace/<project-id>/<file-id>
-        // The ?plugin= query param is read on page load; the hash fragment routes to the workspace.
+        // 4. Done — redirect to Portfolio Design workspace. We deliberately
+        // do NOT append `?plugin=...` anymore — that flag triggered an
+        // eager fetch of the (404) live-embed manifest. Users can open the
+        // Portfolio Live Preview plugin from the workspace Plugins panel.
         document.getElementById("status").textContent = "Ready";
         sub("Opening workspace…");
-        const PLUGIN_URL  = encodeURIComponent(BASE + "/plugins/live-embed/manifest.json");
         const PROJECT_ID  = "f5ffef08-67a8-8164-8008-1f71a25f3da4";
         const FILE_ID     = "f5ffef08-67a8-8164-8008-1f720087cf79";
-        const WORKSPACE   = BASE + "/?plugin=" + PLUGIN_URL + "#/workspace/" + PROJECT_ID + "/" + FILE_ID;
+        const WORKSPACE   = BASE + "/#/workspace/" + PROJECT_ID + "/" + FILE_ID;
         setTimeout(() => { window.location.href = WORKSPACE; }, 600);
 
       } catch (err) {
