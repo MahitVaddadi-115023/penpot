@@ -1,0 +1,13 @@
+# Node
+node_modules/
+dist/
+.DS_Store
+
+# Cargo / Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/
+
+# IDE
+.vscode/
+.idea/
+*.swp
