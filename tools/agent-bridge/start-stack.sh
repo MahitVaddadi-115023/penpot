@@ -137,6 +137,19 @@ else
   fi
 fi
 
+# 5b. Auto-register plugins in user's profile (no Plugin Manager paste) ─────
+echo
+echo "[5b/7] Auto-register plugins in Penpot profile"
+if command -v node >/dev/null 2>&1 && [ -f "$SCRIPT_DIR/register-plugins.mjs" ]; then
+  if node "$SCRIPT_DIR/register-plugins.mjs" >/tmp/agent-bridge-register.log 2>&1; then
+    ok "plugins registered; tail /tmp/agent-bridge-register.log for details"
+  else
+    skip "register failed (non-fatal — paste manifest URL manually). Tail /tmp/agent-bridge-register.log."
+  fi
+else
+  skip "node or register-plugins.mjs missing"
+fi
+
 # 6. agent-bridge dev-server ────────────────────────────────────────────────
 echo
 echo "[6/7] agent-bridge dev-server :9010"

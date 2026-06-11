@@ -137,6 +137,74 @@ export OLLAMA_BASE_URL=...        # if you want local models
 
 ---
 
+## Plugin auto-registration (no Plugin Manager paste)
+
+The Penpot Plugin Manager requires you to paste a manifest URL the first
+time you install any plugin. **You don't have to do that anymore** —
+`start-stack.sh` runs `register-plugins.mjs` as step **5b**, which:
+
+1. Opens auto-login.html in headless Playwright → inherits session cookies.
+2. Reads existing `profile.props.plugins` via the `get-profile` RPC.
+3. Merges any plugins from `PLUGINS_TO_REGISTER` (declared in the script)
+   that aren't already present.
+4. Persists via `update-profile-props`.
+
+It's **idempotent** — re-runs are no-ops if a plugin is already registered
+(by stable `plugin-id` UUID). Run on demand:
+
+```bash
+node ~/coding-agents/repos/penpot/tools/agent-bridge/register-plugins.mjs
+```
+
+### Adding a new plugin to auto-register
+
+Open `register-plugins.mjs` and append to `PLUGINS_TO_REGISTER`:
+
+```js
+{
+  'plugin-id':   '<v4 UUID>',                 // must be a real UUID
+  'name':        'My Plugin',
+  'description': 'one-line desc',
+  'host':        'http://localhost:NNNN',     // where the iframe is served
+  'code':        'plugin.js',
+  'url':         'http://.../manifest.json',
+  'version':     2,
+  'permissions': ['content:read', 'content:write'],
+}
+```
+
+The `host` field is what the runtime uses to resolve `code` and the
+iframe `src`. Use `localhost:9010` if you want the bridge dev-server's WS
+proxy; use `localhost:9001/plugins/<name>` if the plugin is served same-
+origin (and you've installed it via `docker cp`).
+
+After paste-and-save, run `node register-plugins.mjs` once. From then on
+the plugin appears in Penpot's **Plugins** menu — click the name to open
+it. No Plugin Manager interaction needed.
+
+---
+
+## Frontend packages (motion + clover)
+
+The portfolio site (`~/Documents/GitHub/websites/portfolio`) carries
+`motion@^12.40.0` as a dependency — used for portfolio animations, not
+something the bridge plugin needs to import. If you want motion inside
+the agent-plugin iframe, the cleanest path is to add it via Astro's
+existing bundler in portfolio and either:
+
+- **Re-export via portfolio-sync's canvas-to-portfolio bridge** (parallel
+  instance owns that path), or
+- **Drop a UMD/ESM bundle of motion into `agent-plugin/`** and import as
+  `<script type="module" src="motion.bundle.mjs"></script>` — keeps the
+  plugin's "single-file HTML, no bundler" property.
+
+`clover` doesn't appear in any package.json in either repo. If you
+intended to add it but didn't (or meant a different package name —
+`@clover/...`, `cloverleaf`, `clover-design`?), add it to the same
+spot as motion and the plugin's `<script>` can pick it up.
+
+---
+
 ## Five known-fragile spots and how each is healed
 
 | Fragility | Self-heal | Manual recover |
