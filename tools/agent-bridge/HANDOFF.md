@@ -186,22 +186,36 @@ it. No Plugin Manager interaction needed.
 
 ## Frontend packages (motion + clover)
 
-The portfolio site (`~/Documents/GitHub/websites/portfolio`) carries
-`motion@^12.40.0` as a dependency — used for portfolio animations, not
-something the bridge plugin needs to import. If you want motion inside
-the agent-plugin iframe, the cleanest path is to add it via Astro's
-existing bundler in portfolio and either:
+Two animation packages live in the portfolio surface, not the bridge:
 
-- **Re-export via portfolio-sync's canvas-to-portfolio bridge** (parallel
-  instance owns that path), or
-- **Drop a UMD/ESM bundle of motion into `agent-plugin/`** and import as
-  `<script type="module" src="motion.bundle.mjs"></script>` — keeps the
-  plugin's "single-file HTML, no bundler" property.
+| Package | Where | What | Integration |
+|---|---|---|---|
+| **motion** `^12.40.0` | `websites/portfolio/package.json` | Vanilla JS / React animation lib (formerly framer-motion) | Already wired in portfolio. For agent-plugin iframe, drop the ESM bundle as `agent-plugin/motion.mjs` and `import * as motion from './motion.mjs'`. |
+| **clover** | https://github.com/clover-kit/Clover | shadcn-style registry of preset text animations (Next.js + Framer Motion + Tailwind v4) | NOT a direct npm dep. Install per-component: `npx shadcn add https://clover-kit.vercel.app/r/<name>.json`. Requires React + Tailwind. Fits portfolio, NOT agent-plugin (single-file vanilla HTML). |
 
-`clover` doesn't appear in any package.json in either repo. If you
-intended to add it but didn't (or meant a different package name —
-`@clover/...`, `cloverleaf`, `clover-design`?), add it to the same
-spot as motion and the plugin's `<script>` can pick it up.
+### How to add a clover animation to the portfolio
+
+```bash
+cd ~/Documents/GitHub/websites/portfolio
+npx shadcn add https://clover-kit.vercel.app/r/<animation-name>.json
+# Browse names at https://clover-kit.vercel.app
+# Component lands in src/components/ui/ — import in any Astro/React file.
+```
+
+### Animations inside the agent-bridge plugin iframe
+
+The plugin is intentionally single-file vanilla HTML (no bundler, no
+React). Two viable paths:
+
+1. **Use `motion` directly** — it ships ESM and works standalone. Drop
+   `motion.mjs` next to `index.html` and import. ~30 KB gzip.
+2. **Skip both libraries** — the plugin only needs CSS transitions for
+   its Cmd+J popover and mutation feedback. Three keyframes already do
+   the job (see `.cmdi-status.thinking` + `.gutter-dot` fade rules in
+   `index.html`).
+
+Clover's React+Tailwind requirement makes it a poor fit for the plugin
+iframe; it's a portfolio-surface choice.
 
 ---
 
